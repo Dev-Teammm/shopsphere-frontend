@@ -613,11 +613,7 @@ export default function DeliveryGroupsPage() {
                               variant="ghost"
                               size="sm"
                               onClick={() => {
-                                toast({
-                                  title: "Coming Soon",
-                                  description:
-                                    "Group details view will be implemented soon",
-                                });
+                                window.location.href = `/dashboard/delivery-groups/${group.deliveryGroupId}`;
                               }}
                             >
                               <Eye className="h-4 w-4" />

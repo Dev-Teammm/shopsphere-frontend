@@ -94,6 +94,46 @@ class DeliveryGroupsService {
   }
 
   /**
+   * Get orders for a specific delivery group with pagination
+   */
+  async getOrdersForGroup(
+    groupId: number,
+    page: number = 0,
+    size: number = 10,
+    sortBy: string = "createdAt",
+    sortDirection: string = "desc"
+  ): Promise<{
+    content: any[];
+    totalElements: number;
+    totalPages: number;
+    size: number;
+    number: number;
+  }> {
+    try {
+      const params: any = {
+        page,
+        size,
+        sort: `${sortBy},${sortDirection}`,
+      };
+
+      const response = await apiClient.get<ApiResponse<any[]>>(
+        `/delivery-groups/${groupId}/orders`,
+        { params }
+      );
+
+      return {
+        content: response.data.data,
+        totalElements: response.data.pagination?.totalElements || 0,
+        totalPages: response.data.pagination?.totalPages || 0,
+        size: response.data.pagination?.size || size,
+        number: response.data.pagination?.page || page,
+      };
+    } catch (error) {
+      throw handleApiError(error);
+    }
+  }
+
+  /**
    * Get all groups without pagination
    */
   async getAllGroupsWithoutPagination(): Promise<DeliveryGroupDTO[]> {
