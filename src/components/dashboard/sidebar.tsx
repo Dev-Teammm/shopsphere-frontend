@@ -23,6 +23,7 @@ import {
   Percent,
   RotateCcw,
   MessageSquareX,
+  PackageCheck,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -132,6 +133,13 @@ export function Sidebar({ className }: SidebarProps) {
             isActive={pathname.startsWith("/dashboard/orders")}
             badgeCount={pendingOrdersCount}
             isLoading={isLoadingOrders}
+          />
+          <SidebarItem
+            href="/dashboard/delivery-groups"
+            icon={PackageCheck}
+            label="Delivery Groups"
+            collapsed={collapsed}
+            isActive={pathname.startsWith("/dashboard/delivery-groups")}
           />
           <SidebarItemWithBadge
             href="/dashboard/returns"

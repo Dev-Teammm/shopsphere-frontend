@@ -37,12 +37,15 @@ import {
 import {
   AlertCircle,
   Calendar,
+  Clock,
   Edit,
   Eye,
   Plus,
   Search,
   Trash2,
   Users,
+  CheckCircle2,
+  XCircle,
 } from "lucide-react";
 import {
   discountService,
@@ -64,6 +67,7 @@ export default function DiscountsPage() {
   const [sortBy, setSortBy] = useState("createdAt");
   const [sortDirection, setSortDirection] = useState("desc");
   const [activeOnly, setActiveOnly] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<string>("all");
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedDiscount, setSelectedDiscount] = useState<DiscountDTO | null>(
     null
@@ -253,21 +257,104 @@ export default function DiscountsPage() {
     }).format(amount);
   };
 
-  const getStatusBadge = (discount: DiscountDTO) => {
+  const getDiscountStatus = (discount: DiscountDTO) => {
+    const now = new Date();
+    const startDate = new Date(discount.startDate);
+    const endDate = discount.endDate ? new Date(discount.endDate) : null;
+
+    // Check if discount is manually deactivated
     if (!discount.isActive) {
-      return <Badge variant="secondary">Inactive</Badge>;
+      return {
+        label: "Inactive",
+        variant: "secondary" as const,
+        icon: <XCircle className="h-3 w-3 mr-1" />,
+        description: "Manually deactivated",
+      };
     }
-    if (!discount.isValid) {
-      return <Badge variant="destructive">Expired</Badge>;
+
+    // Check if discount hasn't started yet (Scheduled)
+    if (startDate > now) {
+      return {
+        label: "Scheduled",
+        variant: "outline" as const,
+        icon: <Clock className="h-3 w-3 mr-1" />,
+        description: `Starts ${formatDate(discount.startDate)}`,
+      };
     }
-    return <Badge variant="default">Active</Badge>;
+
+    // Check if discount has expired
+    if (endDate && endDate < now) {
+      return {
+        label: "Expired",
+        variant: "destructive" as const,
+        icon: <XCircle className="h-3 w-3 mr-1" />,
+        description: `Ended ${formatDate(discount.endDate)}`,
+      };
+    }
+
+    // Discount is currently active
+    return {
+      label: "Active",
+      variant: "default" as const,
+      icon: <CheckCircle2 className="h-3 w-3 mr-1" />,
+      description: endDate
+        ? `Until ${formatDate(discount.endDate)}`
+        : "No end date",
+    };
   };
 
-  const filteredDiscounts = discounts.filter(
-    (discount) =>
+  const getStatusBadge = (discount: DiscountDTO) => {
+    const status = getDiscountStatus(discount);
+    return (
+      <div className="flex flex-col gap-1">
+        <Badge variant={status.variant} className="flex items-center w-fit">
+          {status.icon}
+          {status.label}
+        </Badge>
+        <span className="text-xs text-muted-foreground">
+          {status.description}
+        </span>
+      </div>
+    );
+  };
+
+  const getStatusCounts = () => {
+    const counts = {
+      scheduled: 0,
+      active: 0,
+      expired: 0,
+      inactive: 0,
+      total: discounts.length,
+    };
+
+    discounts.forEach((discount) => {
+      const status = getDiscountStatus(discount);
+      const label = status.label.toLowerCase();
+      if (label === "scheduled") counts.scheduled++;
+      else if (label === "active") counts.active++;
+      else if (label === "expired") counts.expired++;
+      else if (label === "inactive") counts.inactive++;
+    });
+
+    return counts;
+  };
+
+  const statusCounts = getStatusCounts();
+
+  const filteredDiscounts = discounts.filter((discount) => {
+    // Search filter
+    const matchesSearch =
       discount.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      discount.discountCode?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+      discount.discountCode?.toLowerCase().includes(searchTerm.toLowerCase());
+
+    if (!matchesSearch) return false;
+
+    // Status filter
+    if (statusFilter === "all") return true;
+
+    const status = getDiscountStatus(discount);
+    return status.label.toLowerCase() === statusFilter.toLowerCase();
+  });
 
   return (
     <div className="space-y-6">
@@ -297,6 +384,105 @@ export default function DiscountsPage() {
         </Dialog>
       </div>
 
+      {/* Status Summary Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+        <Card
+          className={`cursor-pointer transition-all hover:shadow-md ${
+            statusFilter === "all" ? "ring-2 ring-primary" : ""
+          }`}
+          onClick={() => setStatusFilter("all")}
+        >
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Total Discounts
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{statusCounts.total}</div>
+          </CardContent>
+        </Card>
+
+        <Card
+          className={`cursor-pointer transition-all hover:shadow-md ${
+            statusFilter === "scheduled" ? "ring-2 ring-primary" : ""
+          }`}
+          onClick={() => setStatusFilter("scheduled")}
+        >
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+              <Clock className="h-4 w-4" />
+              Scheduled
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-blue-600">
+              {statusCounts.scheduled}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">Not started yet</p>
+          </CardContent>
+        </Card>
+
+        <Card
+          className={`cursor-pointer transition-all hover:shadow-md ${
+            statusFilter === "active" ? "ring-2 ring-primary" : ""
+          }`}
+          onClick={() => setStatusFilter("active")}
+        >
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+              <CheckCircle2 className="h-4 w-4" />
+              Active
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-green-600">
+              {statusCounts.active}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">Currently running</p>
+          </CardContent>
+        </Card>
+
+        <Card
+          className={`cursor-pointer transition-all hover:shadow-md ${
+            statusFilter === "expired" ? "ring-2 ring-primary" : ""
+          }`}
+          onClick={() => setStatusFilter("expired")}
+        >
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+              <XCircle className="h-4 w-4" />
+              Expired
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-red-600">
+              {statusCounts.expired}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">Past end date</p>
+          </CardContent>
+        </Card>
+
+        <Card
+          className={`cursor-pointer transition-all hover:shadow-md ${
+            statusFilter === "inactive" ? "ring-2 ring-primary" : ""
+          }`}
+          onClick={() => setStatusFilter("inactive")}
+        >
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+              <XCircle className="h-4 w-4" />
+              Inactive
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-gray-600">
+              {statusCounts.inactive}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">Manually disabled</p>
+          </CardContent>
+        </Card>
+      </div>
+
       {/* Filters */}
       <Card>
         <CardHeader>
@@ -315,16 +501,36 @@ export default function DiscountsPage() {
                 />
               </div>
             </div>
-            <Select
-              value={activeOnly.toString()}
-              onValueChange={(value) => setActiveOnly(value === "true")}
-            >
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
               <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Status" />
+                <SelectValue placeholder="Filter by Status" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="false">All Discounts</SelectItem>
-                <SelectItem value="true">Active Only</SelectItem>
+                <SelectItem value="all">All Statuses</SelectItem>
+                <SelectItem value="scheduled">
+                  <div className="flex items-center gap-2">
+                    <Clock className="h-3 w-3" />
+                    Scheduled
+                  </div>
+                </SelectItem>
+                <SelectItem value="active">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="h-3 w-3" />
+                    Active
+                  </div>
+                </SelectItem>
+                <SelectItem value="expired">
+                  <div className="flex items-center gap-2">
+                    <XCircle className="h-3 w-3" />
+                    Expired
+                  </div>
+                </SelectItem>
+                <SelectItem value="inactive">
+                  <div className="flex items-center gap-2">
+                    <XCircle className="h-3 w-3" />
+                    Inactive
+                  </div>
+                </SelectItem>
               </SelectContent>
             </Select>
             <Select value={sortBy} onValueChange={setSortBy}>
@@ -355,15 +561,67 @@ export default function DiscountsPage() {
       {/* Discounts Table */}
       <Card>
         <CardHeader>
-          <CardTitle>Discounts ({totalElements})</CardTitle>
-          <CardDescription>
-            Manage your discount codes and promotional offers
-          </CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>
+                Discounts
+                {statusFilter !== "all" || searchTerm ? (
+                  <span className="text-muted-foreground">
+                    {" "}
+                    ({filteredDiscounts.length} of {totalElements})
+                  </span>
+                ) : (
+                  <span className="text-muted-foreground"> ({totalElements})</span>
+                )}
+              </CardTitle>
+              <CardDescription>
+                Manage your discount codes and promotional offers
+                {(statusFilter !== "all" || searchTerm) && (
+                  <span className="ml-2 text-primary">
+                    • Filters active
+                  </span>
+                )}
+              </CardDescription>
+            </div>
+            {(statusFilter !== "all" || searchTerm) && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setStatusFilter("all");
+                  setSearchTerm("");
+                }}
+              >
+                Clear Filters
+              </Button>
+            )}
+          </div>
         </CardHeader>
         <CardContent>
           {loading ? (
             <div className="flex items-center justify-center py-8">
               <div className="text-muted-foreground">Loading discounts...</div>
+            </div>
+          ) : filteredDiscounts.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-12 text-center">
+              <AlertCircle className="h-12 w-12 text-muted-foreground mb-4" />
+              <h3 className="text-lg font-semibold mb-2">No discounts found</h3>
+              <p className="text-muted-foreground mb-4">
+                {searchTerm || statusFilter !== "all"
+                  ? "Try adjusting your filters to see more results."
+                  : "Create your first discount to get started."}
+              </p>
+              {(searchTerm || statusFilter !== "all") && (
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setStatusFilter("all");
+                    setSearchTerm("");
+                  }}
+                >
+                  Clear Filters
+                </Button>
+              )}
             </div>
           ) : (
             <div className="space-y-4">
