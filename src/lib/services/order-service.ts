@@ -140,20 +140,7 @@ class OrderService {
     }
   }
 
-  /**
-   * Get order by order number for admin
-   */
-  async getOrderByNumber(orderNumber: string): Promise<AdminOrderDTO> {
-    try {
-      const response = await apiClient.get<ApiResponse<AdminOrderDTO>>(
-        API_ENDPOINTS.ADMIN_ORDERS.BY_NUMBER(orderNumber)
-      );
-      return response.data.data;
-    } catch (error) {
-      console.error("Error fetching order by number:", error);
-      throw error;
-    }
-  }
+
 
   /**
    * Update order status (admin only)
@@ -198,39 +185,6 @@ class OrderService {
       return response.data.data;
     } catch (error) {
       console.error("Error updating order tracking:", error);
-      throw error;
-    }
-  }
-
-  /**
-   * Cancel order (customer endpoint - keeping for compatibility)
-   */
-  async cancelOrder(orderId: string, userId: string): Promise<any> {
-    try {
-      const response = await apiClient.put<ApiResponse<any>>(
-        API_ENDPOINTS.ORDERS.CANCEL(orderId),
-        {},
-        { params: { userId } }
-      );
-      return response.data.data;
-    } catch (error) {
-      console.error("Error cancelling order:", error);
-      throw error;
-    }
-  }
-
-  /**
-   * Get order tracking (customer endpoint - keeping for compatibility)
-   */
-  async getOrderTracking(orderId: string, userId: string): Promise<any> {
-    try {
-      const response = await apiClient.get<ApiResponse<any>>(
-        API_ENDPOINTS.ORDERS.TRACKING(orderId),
-        { params: { userId } }
-      );
-      return response.data.data;
-    } catch (error) {
-      console.error("Error fetching order tracking:", error);
       throw error;
     }
   }

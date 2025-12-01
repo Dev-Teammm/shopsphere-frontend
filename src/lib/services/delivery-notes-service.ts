@@ -96,41 +96,4 @@ export const deliveryNotesService = {
     return response.data;
   },
 
-  /**
-   * Get all notes for a delivery group (including order-specific notes)
-   */
-  getAllNotesForDeliveryGroup: async (
-    groupId: number,
-    page: number = 0,
-    size: number = 10
-  ): Promise<PaginatedResponse<DeliveryNoteDTO>> => {
-    const response = await apiClient.get(
-      `/delivery-notes/group/${groupId}/all`,
-      {
-        params: { page, size, sortBy: "createdAt", sortDirection: "DESC" },
-      }
-    );
-    return response.data;
-  },
-
-  /**
-   * Get my notes
-   */
-  getMyNotes: async (
-    page: number = 0,
-    size: number = 10
-  ): Promise<PaginatedResponse<DeliveryNoteDTO>> => {
-    const response = await apiClient.get(`/delivery-notes/agent/my-notes`, {
-      params: { page, size, sortBy: "createdAt", sortDirection: "DESC" },
-    });
-    return response.data;
-  },
-
-  /**
-   * Get note by ID
-   */
-  getNoteById: async (noteId: number): Promise<DeliveryNoteDTO> => {
-    const response = await apiClient.get(`/v1/delivery-notes/${noteId}`);
-    return response.data.data;
-  },
 };
