@@ -58,12 +58,23 @@ export function LoginForm() {
     },
   });
 
+  const { user } = useAppSelector((state) => state.auth);
+
   // Redirect if already authenticated
   useEffect(() => {
-    if (isAuthenticated && !authLoading) {
-      router.replace(returnUrl);
+    if (isAuthenticated && !authLoading && user) {
+      if (
+        user.role === UserRole.VENDOR ||
+        user.role === UserRole.EMPLOYEE ||
+        user.role === UserRole.DELIVERY_AGENT ||
+        user.role === UserRole.ADMIN
+      ) {
+        router.replace("/shops");
+      } else {
+        router.replace("/auth");
+      }
     }
-  }, [isAuthenticated, router, returnUrl, authLoading]);
+  }, [isAuthenticated, router, authLoading, user]);
 
   // Show auth error if any
   useEffect(() => {
@@ -105,7 +116,8 @@ export function LoginForm() {
       if (
         data.role != UserRole.ADMIN &&
         data.role != UserRole.EMPLOYEE &&
-        data.role != UserRole.DELIVERY_AGENT
+        data.role != UserRole.DELIVERY_AGENT &&
+        data.role != UserRole.VENDOR
       ) {
         localStorage.removeItem("admin_auth_token");
         
@@ -117,6 +129,16 @@ export function LoginForm() {
         setTimeout(() => {
           window.location.href = "https://shopsphere-frontend.vercel.app/shop";
         }, 500);
+        return;
+      }
+
+      if (
+        data.role === UserRole.VENDOR ||
+        data.role === UserRole.EMPLOYEE ||
+        data.role === UserRole.DELIVERY_AGENT ||
+        data.role === UserRole.ADMIN
+      ) {
+        router.replace("/shops");
         return;
       }
 

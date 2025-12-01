@@ -20,12 +20,13 @@ export default function Home() {
     // If user is authenticated, redirect based on role
     if (isAuthenticated && user) {
       if (user.role === UserRole.DELIVERY_AGENT) {
-        router.replace("/delivery-agent/dashboard");
+        router.replace("/shops");
       } else if (
         user.role === UserRole.ADMIN ||
-        user.role === UserRole.EMPLOYEE
+        user.role === UserRole.EMPLOYEE ||
+        user.role === UserRole.VENDOR
       ) {
-        router.replace("/dashboard");
+        router.replace("/shops");
       } else {
         router.replace("/auth");
       }
