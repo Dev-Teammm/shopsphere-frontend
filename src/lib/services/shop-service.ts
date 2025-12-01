@@ -77,13 +77,37 @@ const MOCK_SHOPS: ShopDTO[] = [
 class ShopService {
   async getUserShops(): Promise<ShopDTO[]> {
     try {
-      const response = await apiClient.get<ShopDTO[]>(API_ENDPOINTS.SHOPS.USER_SHOPS);
-      if (response.data && response.data.length > 0) {
-        return response.data;
+      const response = await apiClient.get<ShopDTO[] | { data: ShopDTO[] }>(
+        API_ENDPOINTS.SHOPS.USER_SHOPS
+      );
+      
+      let shops: ShopDTO[] = [];
+      
+      if (Array.isArray(response.data)) {
+        shops = response.data;
+      } else if (response.data && typeof response.data === 'object' && 'data' in response.data) {
+        shops = (response.data as { data: ShopDTO[] }).data;
       }
+      
+      if (shops && shops.length > 0) {
+        return shops;
+      }
+      
+      console.warn("No shops returned from API, using mock data for testing");
       return MOCK_SHOPS;
-    } catch (error) {
-      console.error("Error fetching user shops, using mock data:", error);
+    } catch (error: any) {
+      console.error("Error fetching user shops:", error);
+      
+      if (error.response?.status === 401 || error.response?.status === 403) {
+        throw new Error("Unauthorized. Please log in again.");
+      }
+      
+      if (error.response?.status === 404) {
+        console.warn("No shops found, using mock data for testing");
+        return MOCK_SHOPS;
+      }
+      
+      console.warn("API error, using mock data for testing:", error.message);
       return MOCK_SHOPS;
     }
   }

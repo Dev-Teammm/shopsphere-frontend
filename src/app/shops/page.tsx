@@ -9,10 +9,12 @@ import { UserRole } from "@/lib/constants";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { Store, Package, Plus, ArrowRight, Building2 } from "lucide-react";
 import Image from "next/image";
 import ProtectedRoute from "@/components/auth/protected-route";
+import { ShopsHeader } from "@/components/shops/shops-header";
 
 function ShopsPageContent() {
   const router = useRouter();
@@ -32,14 +34,29 @@ function ShopsPageContent() {
   });
 
   useEffect(() => {
-    if (shopsError && (!shops || shops.length === 0)) {
-      toast({
-        title: "Using Demo Data",
-        description: "Could not connect to server. Showing demo shops for testing.",
-        variant: "default",
-      });
+    if (shopsError) {
+      const errorMessage = shopsError instanceof Error 
+        ? shopsError.message 
+        : "Failed to load shops";
+      
+      if (errorMessage.includes("Unauthorized")) {
+        toast({
+          title: "Authentication Error",
+          description: "Your session has expired. Please log in again.",
+          variant: "destructive",
+        });
+        setTimeout(() => {
+          router.push("/auth");
+        }, 2000);
+      } else if (!shops || shops.length === 0) {
+        toast({
+          title: "Using Demo Data",
+          description: "Could not connect to server. Showing demo shops for testing.",
+          variant: "default",
+        });
+      }
     }
-  }, [shopsError, shops, toast]);
+  }, [shopsError, shops, toast, router]);
 
   const handleOpenShop = (shopId: string) => {
     if (user?.role === UserRole.DELIVERY_AGENT) {
@@ -62,47 +79,88 @@ function ShopsPageContent() {
 
   if (shopsLoading) {
     return (
-      <div className="container mx-auto px-4 py-8">
-        <div className="mb-8">
-          <Skeleton className="h-10 w-64 mb-4" />
-          <Skeleton className="h-6 w-96" />
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {[1, 2, 3].map((i) => (
-            <Card key={i}>
-              <CardHeader>
-                <Skeleton className="h-48 w-full" />
-              </CardHeader>
-              <CardContent>
-                <Skeleton className="h-6 w-3/4 mb-2" />
-                <Skeleton className="h-4 w-full" />
-              </CardContent>
-              <CardFooter>
-                <Skeleton className="h-10 w-full" />
-              </CardFooter>
-            </Card>
-          ))}
+      <div className="min-h-screen bg-background">
+        <ShopsHeader />
+        <div className="container mx-auto px-4 py-8">
+          <div className="mb-8">
+            <Skeleton className="h-10 w-64 mb-4" />
+            <Skeleton className="h-6 w-96" />
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {[1, 2, 3].map((i) => (
+              <Card key={i}>
+                <CardHeader>
+                  <Skeleton className="h-48 w-full" />
+                </CardHeader>
+                <CardContent>
+                  <Skeleton className="h-6 w-3/4 mb-2" />
+                  <Skeleton className="h-4 w-full" />
+                </CardContent>
+                <CardFooter>
+                  <Skeleton className="h-10 w-full" />
+                </CardFooter>
+              </Card>
+            ))}
+          </div>
         </div>
       </div>
     );
   }
 
+  const getStatusBadge = (status: string, isActive?: boolean) => {
+    if (status === "ACTIVE" && isActive) {
+      return (
+        <Badge className="bg-green-500 hover:bg-green-600 text-white">
+          Active
+        </Badge>
+      );
+    }
+    if (status === "PENDING") {
+      return (
+        <Badge className="bg-yellow-500 hover:bg-yellow-600 text-white">
+          Pending
+        </Badge>
+      );
+    }
+    if (status === "SUSPENDED") {
+      return (
+        <Badge className="bg-red-500 hover:bg-red-600 text-white">
+          Suspended
+        </Badge>
+      );
+    }
+    if (status === "INACTIVE") {
+      return (
+        <Badge className="bg-gray-500 hover:bg-gray-600 text-white">
+          Inactive
+        </Badge>
+      );
+    }
+    return (
+      <Badge variant="secondary">
+        {status}
+      </Badge>
+    );
+  };
+
   return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight mb-2">My Shops</h1>
-          <p className="text-muted-foreground">
-            Select a shop to manage or create a new one
-          </p>
+    <div className="min-h-screen bg-background">
+      <ShopsHeader />
+      <div className="container mx-auto px-4 py-8">
+        <div className="mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight mb-2">My Shops</h1>
+            <p className="text-muted-foreground">
+              Select a shop to manage or create a new one
+            </p>
+          </div>
+          {(user?.role === UserRole.VENDOR || user?.role === UserRole.ADMIN) && (
+            <Button onClick={handleCreateShop} size="lg" className="gap-2">
+              <Plus className="h-5 w-5" />
+              Create Shop
+            </Button>
+          )}
         </div>
-        {(user?.role === UserRole.VENDOR || user?.role === UserRole.ADMIN) && (
-          <Button onClick={handleCreateShop} size="lg" className="gap-2">
-            <Plus className="h-5 w-5" />
-            Create Shop
-          </Button>
-        )}
-      </div>
 
 
       {!shopsLoading && shops && shops.length === 0 && (
@@ -139,26 +197,16 @@ function ShopsPageContent() {
                       alt={shop.name}
                       fill
                       className="object-cover"
+                      unoptimized
                     />
                   ) : (
-                    <div className="flex items-center justify-center h-full">
+                    <div className="flex items-center justify-center h-full bg-muted">
                       <Store className="h-16 w-16 text-muted-foreground" />
                     </div>
                   )}
-                  {shop.status === "PENDING" && (
-                    <div className="absolute top-2 right-2">
-                      <span className="bg-yellow-500 text-white text-xs px-2 py-1 rounded">
-                        Pending
-                      </span>
-                    </div>
-                  )}
-                  {shop.status === "ACTIVE" && shop.isActive && (
-                    <div className="absolute top-2 right-2">
-                      <span className="bg-green-500 text-white text-xs px-2 py-1 rounded">
-                        Active
-                      </span>
-                    </div>
-                  )}
+                  <div className="absolute top-2 right-2">
+                    {getStatusBadge(shop.status, shop.isActive)}
+                  </div>
                 </div>
               </CardHeader>
               <CardContent className="pt-6">
@@ -180,6 +228,7 @@ function ShopsPageContent() {
                   onClick={() => handleOpenShop(shop.shopId)}
                   className="w-full gap-2"
                   size="lg"
+                  disabled={shop.status === "SUSPENDED" || shop.status === "INACTIVE"}
                 >
                   Open
                   <ArrowRight className="h-4 w-4" />
@@ -189,6 +238,7 @@ function ShopsPageContent() {
           ))}
         </div>
       )}
+      </div>
     </div>
   );
 }
