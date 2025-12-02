@@ -11,14 +11,21 @@ import { AxiosError } from "axios";
 
 class DashboardService {
   // Fetches dashboard data from the API - matches backend DashboardController
-  async getDashboardData(): Promise<DashboardResponseDTO> {
+  async getDashboardData(shopSlug?: string): Promise<DashboardResponseDTO> {
     try {
-      const response = await apiClient.get(API_ENDPOINTS.DASHBOARD.BASE);
+      const params = shopSlug ? { shopSlug } : {};
+      const response = await apiClient.get(API_ENDPOINTS.DASHBOARD.BASE, { params });
       return response.data;
     } catch (error) {
       const axiosError = error as AxiosError;
       console.error("Error fetching dashboard data:", axiosError);
-      throw new Error("Failed to load dashboard data");
+      if (axiosError.response?.status === 403) {
+        throw new Error("Access denied. You don't have permission to view this shop's dashboard.");
+      }
+      throw new Error(
+        axiosError.response?.data?.message || 
+        "Failed to load dashboard data"
+      );
     }
   }
 
