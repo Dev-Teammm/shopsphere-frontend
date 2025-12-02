@@ -24,12 +24,11 @@ export const authService = {
       loginData = response.data;
     }
 
-    // Only store token for admin portal users (not customers)
     if (loginData.token) {
-      const allowedRoles = ["ADMIN", "EMPLOYEE", "DELIVERY_AGENT"];
+      const allowedRoles = ["ADMIN", "EMPLOYEE", "DELIVERY_AGENT", "VENDOR", "CUSTOMER"];
       
       if (allowedRoles.includes(loginData.role)) {
-        localStorage.setItem("admin_auth_token", loginData.token);
+        localStorage.setItem("authToken", loginData.token);
         apiClient.defaults.headers.common[
           "Authorization"
         ] = `Bearer ${loginData.token}`;
@@ -49,12 +48,12 @@ export const authService = {
     } catch (error) {
       console.error("Logout error:", error);
     } finally {
-      localStorage.removeItem("admin_auth_token");
+      localStorage.removeItem("authToken");
       delete apiClient.defaults.headers.common["Authorization"];
       delete apiClient.defaults.headers.Authorization;
       if (typeof window !== "undefined") {
-        localStorage.removeItem("admin_auth_token");
-        sessionStorage.removeItem("admin_auth_token");
+        localStorage.removeItem("authToken");
+        sessionStorage.removeItem("authToken");
       }
     }
   },
@@ -77,7 +76,7 @@ export const authService = {
   },
 
   getToken(): string | null {
-    return localStorage.getItem("admin_auth_token");
+    return localStorage.getItem("authToken");
   },
 
 

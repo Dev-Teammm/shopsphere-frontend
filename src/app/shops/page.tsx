@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { shopService, ShopDTO } from "@/lib/services/shop-service";
@@ -15,11 +15,13 @@ import { Store, Package, Plus, ArrowRight, Building2 } from "lucide-react";
 import Image from "next/image";
 import ProtectedRoute from "@/components/auth/protected-route";
 import { ShopsHeader } from "@/components/shops/shops-header";
+import { CreateShopDialog } from "@/components/shops/create-shop-dialog";
 
 function ShopsPageContent() {
   const router = useRouter();
   const { toast } = useToast();
   const { user } = useAppSelector((state) => state.auth);
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
 
   const {
     data: shops,
@@ -48,15 +50,15 @@ function ShopsPageContent() {
         setTimeout(() => {
           router.push("/auth");
         }, 2000);
-      } else if (!shops || shops.length === 0) {
+      } else {
         toast({
-          title: "Using Demo Data",
-          description: "Could not connect to server. Showing demo shops for testing.",
-          variant: "default",
+          title: "Error Loading Shops",
+          description: errorMessage,
+          variant: "destructive",
         });
       }
     }
-  }, [shopsError, shops, toast, router]);
+  }, [shopsError, toast, router]);
 
   const handleOpenShop = (shopId: string) => {
     if (user?.role === UserRole.DELIVERY_AGENT) {
@@ -71,10 +73,7 @@ function ShopsPageContent() {
   };
 
   const handleCreateShop = () => {
-    toast({
-      title: "Coming Soon",
-      description: "Shop creation functionality will be available soon.",
-    });
+    setIsCreateDialogOpen(true);
   };
 
   if (shopsLoading) {
@@ -154,7 +153,7 @@ function ShopsPageContent() {
               Select a shop to manage or create a new one
             </p>
           </div>
-          {(user?.role === UserRole.VENDOR || user?.role === UserRole.ADMIN) && (
+          {(user?.role === UserRole.VENDOR || user?.role === UserRole.CUSTOMER) && (
             <Button onClick={handleCreateShop} size="lg" className="gap-2">
               <Plus className="h-5 w-5" />
               Create Shop
@@ -163,18 +162,18 @@ function ShopsPageContent() {
         </div>
 
 
-      {!shopsLoading && shops && shops.length === 0 && (
+      {!shopsLoading && !shopsError && (!shops || shops.length === 0) && (
         <Card>
           <CardContent className="pt-6">
             <div className="text-center py-12">
               <Building2 className="h-16 w-16 mx-auto text-muted-foreground mb-4" />
               <h3 className="text-xl font-semibold mb-2">No shops found</h3>
               <p className="text-muted-foreground mb-6">
-                {user?.role === UserRole.VENDOR || user?.role === UserRole.ADMIN
+                {user?.role === UserRole.VENDOR || user?.role === UserRole.CUSTOMER
                   ? "You don't have any shops yet. Create your first shop to get started."
                   : "You are not associated with any shops yet."}
               </p>
-              {(user?.role === UserRole.VENDOR || user?.role === UserRole.ADMIN) && (
+              {(user?.role === UserRole.VENDOR || user?.role === UserRole.CUSTOMER) && (
                 <Button onClick={handleCreateShop} size="lg" className="gap-2">
                   <Plus className="h-5 w-5" />
                   Create Shop
@@ -185,7 +184,7 @@ function ShopsPageContent() {
         </Card>
       )}
 
-      {shops && shops.length > 0 && (
+      {!shopsLoading && !shopsError && shops && shops.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {shops.map((shop) => (
             <Card key={shop.shopId} className="hover:shadow-lg transition-shadow">
@@ -239,13 +238,17 @@ function ShopsPageContent() {
         </div>
       )}
       </div>
+      <CreateShopDialog
+        isOpen={isCreateDialogOpen}
+        onOpenChange={setIsCreateDialogOpen}
+      />
     </div>
   );
 }
 
 export default function ShopsPage() {
   return (
-    <ProtectedRoute allowedRoles={[UserRole.VENDOR, UserRole.EMPLOYEE, UserRole.DELIVERY_AGENT, UserRole.ADMIN]}>
+    <ProtectedRoute allowedRoles={[UserRole.VENDOR, UserRole.CUSTOMER, UserRole.EMPLOYEE, UserRole.DELIVERY_AGENT, UserRole.ADMIN]}>
       <ShopsPageContent />
     </ProtectedRoute>
   );

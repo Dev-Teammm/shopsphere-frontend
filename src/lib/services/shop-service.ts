@@ -20,81 +20,18 @@ export interface ShopDTO {
   updatedAt?: string;
 }
 
-const MOCK_SHOPS: ShopDTO[] = [
-  {
-    shopId: "mock-shop-1",
-    name: "Tech Store Pro",
-    description: "Your one-stop shop for all tech gadgets and accessories",
-    slug: "tech-store-pro",
-    logoUrl: "https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=400&h=300&fit=crop",
-    status: "ACTIVE",
-    ownerId: "mock-owner-1",
-    ownerName: "John Doe",
-    contactEmail: "contact@techstorepro.com",
-    contactPhone: "+1234567890",
-    address: "123 Tech Street, Silicon Valley",
-    isActive: true,
-    productCount: 45,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-  {
-    shopId: "mock-shop-2",
-    name: "Fashion Boutique",
-    description: "Trendy fashion items for the modern lifestyle",
-    slug: "fashion-boutique",
-    logoUrl: "https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=400&h=300&fit=crop",
-    status: "ACTIVE",
-    ownerId: "mock-owner-1",
-    ownerName: "John Doe",
-    contactEmail: "info@fashionboutique.com",
-    contactPhone: "+1234567891",
-    address: "456 Fashion Avenue, New York",
-    isActive: true,
-    productCount: 128,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-  {
-    shopId: "mock-shop-3",
-    name: "Home Essentials",
-    description: "Everything you need for your home and kitchen",
-    slug: "home-essentials",
-    logoUrl: "https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=400&h=300&fit=crop",
-    status: "PENDING",
-    ownerId: "mock-owner-1",
-    ownerName: "John Doe",
-    contactEmail: "support@homeessentials.com",
-    contactPhone: "+1234567892",
-    address: "789 Home Street, Los Angeles",
-    isActive: false,
-    productCount: 67,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-];
-
 class ShopService {
   async getUserShops(): Promise<ShopDTO[]> {
     try {
-      const response = await apiClient.get<ShopDTO[] | { data: ShopDTO[] }>(
+      const response = await apiClient.get<ShopDTO[]>(
         API_ENDPOINTS.SHOPS.USER_SHOPS
       );
       
-      let shops: ShopDTO[] = [];
-      
       if (Array.isArray(response.data)) {
-        shops = response.data;
-      } else if (response.data && typeof response.data === 'object' && 'data' in response.data) {
-        shops = (response.data as { data: ShopDTO[] }).data;
+        return response.data;
       }
       
-      if (shops && shops.length > 0) {
-        return shops;
-      }
-      
-      console.warn("No shops returned from API, using mock data for testing");
-      return MOCK_SHOPS;
+      return [];
     } catch (error: any) {
       console.error("Error fetching user shops:", error);
       
@@ -103,12 +40,14 @@ class ShopService {
       }
       
       if (error.response?.status === 404) {
-        console.warn("No shops found, using mock data for testing");
-        return MOCK_SHOPS;
+        return [];
       }
       
-      console.warn("API error, using mock data for testing:", error.message);
-      return MOCK_SHOPS;
+      throw new Error(
+        error.response?.data?.message || 
+        error.message || 
+        "Failed to fetch shops. Please try again later."
+      );
     }
   }
 
@@ -119,6 +58,86 @@ class ShopService {
     } catch (error) {
       console.error("Error fetching shop:", error);
       throw error;
+    }
+  }
+
+  async createShop(shopData: Partial<ShopDTO>): Promise<ShopDTO> {
+    try {
+      const token = localStorage.getItem("authToken");
+      console.log("[ShopService] Creating shop - token present:", !!token);
+      
+      if (!token) {
+        throw new Error("Authentication token not found. Please log in again.");
+      }
+
+      console.log("[ShopService] Sending JSON request with Authorization header");
+      const response = await apiClient.post<ShopDTO>(
+        API_ENDPOINTS.SHOPS.BASE,
+        shopData,
+        {
+          headers: {
+            "Authorization": `Bearer ${token}`,
+          },
+        }
+      );
+      return response.data;
+    } catch (error: any) {
+      console.error("[ShopService] Error creating shop:", error);
+      if (error.response?.status === 403) {
+        throw new Error("Access denied. Please check your permissions or log in again.");
+      }
+      throw new Error(
+        error.response?.data?.message ||
+        error.message ||
+        "Failed to create shop. Please try again."
+      );
+    }
+  }
+
+  async createShopWithLogo(
+    shopData: Partial<ShopDTO>,
+    logoFile: File
+  ): Promise<ShopDTO> {
+    try {
+      const token = localStorage.getItem("authToken");
+      console.log("[ShopService] Creating shop with logo - token present:", !!token);
+      
+      if (!token) {
+        throw new Error("Authentication token not found. Please log in again.");
+      }
+
+      const formData = new FormData();
+      formData.append("name", shopData.name || "");
+      if (shopData.description) {
+        formData.append("description", shopData.description);
+      }
+      formData.append("contactEmail", shopData.contactEmail || "");
+      formData.append("contactPhone", shopData.contactPhone || "");
+      formData.append("address", shopData.address || "");
+      formData.append("isActive", String(shopData.isActive ?? true));
+      formData.append("logo", logoFile);
+
+      console.log("[ShopService] Sending multipart request with Authorization header");
+      const response = await apiClient.post<ShopDTO>(
+        `${API_ENDPOINTS.SHOPS.BASE}/with-logo`,
+        formData,
+        {
+          headers: {
+            "Authorization": `Bearer ${token}`,
+          },
+        }
+      );
+      return response.data;
+    } catch (error: any) {
+      console.error("[ShopService] Error creating shop with logo:", error);
+      if (error.response?.status === 403) {
+        throw new Error("Access denied. Please check your permissions or log in again.");
+      }
+      throw new Error(
+        error.response?.data?.message ||
+        error.message ||
+        "Failed to create shop. Please try again."
+      );
     }
   }
 }

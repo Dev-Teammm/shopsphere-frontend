@@ -65,6 +65,7 @@ export function LoginForm() {
     if (isAuthenticated && !authLoading && user) {
       if (
         user.role === UserRole.VENDOR ||
+        user.role === UserRole.CUSTOMER ||
         user.role === UserRole.EMPLOYEE ||
         user.role === UserRole.DELIVERY_AGENT ||
         user.role === UserRole.ADMIN
@@ -114,26 +115,8 @@ export function LoginForm() {
       });
 
       if (
-        data.role != UserRole.ADMIN &&
-        data.role != UserRole.EMPLOYEE &&
-        data.role != UserRole.DELIVERY_AGENT &&
-        data.role != UserRole.VENDOR
-      ) {
-        localStorage.removeItem("admin_auth_token");
-        
-        toast({
-          title: "Redirecting...",
-          description: "You're being redirected to the customer portal",
-        });
-        
-        setTimeout(() => {
-          window.location.href = "https://shopsphere-frontend.vercel.app/shop";
-        }, 500);
-        return;
-      }
-
-      if (
         data.role === UserRole.VENDOR ||
+        data.role === UserRole.CUSTOMER ||
         data.role === UserRole.EMPLOYEE ||
         data.role === UserRole.DELIVERY_AGENT ||
         data.role === UserRole.ADMIN

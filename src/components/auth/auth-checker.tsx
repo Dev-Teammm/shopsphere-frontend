@@ -61,10 +61,10 @@ export function AuthChecker({ children }: { children: React.ReactNode }) {
         const user = await authService.getCurrentUser();
         console.log("User data received:", user);
         
-        const allowedRoles = ["ADMIN", "EMPLOYEE", "DELIVERY_AGENT"];
+        const allowedRoles = ["ADMIN", "EMPLOYEE", "DELIVERY_AGENT", "VENDOR", "CUSTOMER"];
         if (!allowedRoles.includes(user.role)) {
           console.log("User has invalid role for admin portal:", user.role);
-          localStorage.removeItem("admin_auth_token");
+          localStorage.removeItem("authToken");
           dispatch(checkAuthFailure());
           return;
         }

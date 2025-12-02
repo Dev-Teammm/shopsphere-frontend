@@ -13,13 +13,22 @@ const apiClient = axios.create({
 // Request interceptor to add auth token
 apiClient.interceptors.request.use(
   (config) => {
+    // If the data is FormData, remove Content-Type header to let Axios set multipart/form-data automatically
+    if (config.data instanceof FormData) {
+      delete config.headers["Content-Type"];
+      console.log(`[API Client] Detected FormData, removed Content-Type header for: ${config.url}`);
+    }
+    
     // Only add token if we're in the browser
     if (typeof window !== "undefined") {
-      const token = localStorage.getItem("admin_auth_token");
+      const token = localStorage.getItem("authToken");
       if (token) {
         config.headers.Authorization = `Bearer ${token}`;
         // Also set the default header for this instance
         apiClient.defaults.headers.common["Authorization"] = `Bearer ${token}`;
+        console.log(`[API Client] Added Authorization header for request to: ${config.url}`);
+      } else {
+        console.warn(`[API Client] No auth token found in localStorage for request to: ${config.url}`);
       }
     }
     return config;
@@ -37,7 +46,7 @@ apiClient.interceptors.response.use(
 
       if (typeof window !== "undefined" && !isAuthMeRequest) {
         // Clear the invalid token
-        localStorage.removeItem("admin_auth_token");
+        localStorage.removeItem("authToken");
         delete apiClient.defaults.headers.common["Authorization"];
         delete apiClient.defaults.headers.Authorization;
 
