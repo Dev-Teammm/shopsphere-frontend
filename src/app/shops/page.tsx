@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { shopService, ShopDTO } from "@/lib/services/shop-service";
 import { useAppSelector } from "@/lib/redux/hooks";
+import type { RootState } from "@/lib/redux/store";
 import { UserRole } from "@/lib/constants";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -20,7 +21,7 @@ import { CreateShopDialog } from "@/components/shops/create-shop-dialog";
 function ShopsPageContent() {
   const router = useRouter();
   const { toast } = useToast();
-  const { user } = useAppSelector((state) => state.auth);
+  const { user } = useAppSelector((state: RootState) => state.auth);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
 
   const {

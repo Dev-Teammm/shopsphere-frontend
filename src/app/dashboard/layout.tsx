@@ -8,6 +8,7 @@ import { DashboardProvider } from "@/components/dashboard/dashboard-context";
 import ProtectedRoute from "@/components/auth/protected-route";
 import { UserRole } from "@/lib/constants";
 import { useAppSelector } from "@/lib/redux/hooks";
+import type { RootState } from "@/lib/redux/store";
 import { useRouter } from "next/navigation";
 
 export default function DashboardLayout({
@@ -18,7 +19,7 @@ export default function DashboardLayout({
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [title, setTitle] = useState("Dashboard");
-  const { user } = useAppSelector((state) => state.auth);
+  const { user } = useAppSelector((state: RootState) => state.auth);
   const router = useRouter();
 
   useEffect(() => {

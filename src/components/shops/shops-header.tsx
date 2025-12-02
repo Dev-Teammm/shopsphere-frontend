@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useAppDispatch, useAppSelector } from "@/lib/redux/hooks";
+import type { RootState } from "@/lib/redux/store";
 import { authService } from "@/lib/services/auth-service";
 import { logout } from "@/lib/redux/auth-slice";
 import { handleApiError } from "@/lib/utils/error-handler";
@@ -24,7 +25,7 @@ export function ShopsHeader() {
   const router = useRouter();
   const { toast } = useToast();
   const dispatch = useAppDispatch();
-  const { user } = useAppSelector((state) => state.auth);
+  const { user } = useAppSelector((state: RootState) => state.auth);
 
   const logoutMutation = useMutation({
     mutationFn: authService.logout,

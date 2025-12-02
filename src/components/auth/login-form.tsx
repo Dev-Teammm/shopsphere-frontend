@@ -22,6 +22,7 @@ import { Layers, Eye, EyeOff } from "lucide-react";
 import { authService } from "@/lib/services/auth-service";
 import { LoginRequest } from "@/lib/types";
 import { useAppDispatch, useAppSelector } from "@/lib/redux/hooks";
+import type { RootState } from "@/lib/redux/store";
 import {
   loginStart,
   loginSuccess,
@@ -48,7 +49,7 @@ export function LoginForm() {
     isAuthenticated,
     isLoading: authLoading,
     error: authError,
-  } = useAppSelector((state) => state.auth);
+  } = useAppSelector((state: RootState) => state.auth);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -58,7 +59,7 @@ export function LoginForm() {
     },
   });
 
-  const { user } = useAppSelector((state) => state.auth);
+  const { user } = useAppSelector((state: RootState) => state.auth);
 
   // Redirect if already authenticated
   useEffect(() => {

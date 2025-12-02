@@ -61,6 +61,19 @@ class ShopService {
     }
   }
 
+  async getShopBySlug(slug: string): Promise<ShopDTO> {
+    try {
+      const response = await apiClient.get<ShopDTO>(`${API_ENDPOINTS.SHOPS.BASE}/slug/${slug}`);
+      return response.data;
+    } catch (error: any) {
+      console.error("Error fetching shop by slug:", error);
+      if (error.response?.status === 404) {
+        throw new Error("Shop not found");
+      }
+      throw error;
+    }
+  }
+
   async createShop(shopData: Partial<ShopDTO>): Promise<ShopDTO> {
     try {
       const token = localStorage.getItem("authToken");

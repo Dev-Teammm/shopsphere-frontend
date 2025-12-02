@@ -41,22 +41,54 @@ apiClient.interceptors.request.use(
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
-      const isAuthMeRequest = error.config?.url?.includes("/auth/me");
+    if (typeof window === "undefined") {
+      return Promise.reject(error);
+    }
 
-      if (typeof window !== "undefined" && !isAuthMeRequest) {
+    const status = error.response?.status;
+    const isAuthMeRequest = error.config?.url?.includes("/auth/me");
+    const isAuthRequest = error.config?.url?.includes("/auth/");
+
+    // Handle 401 Unauthorized - token expired or invalid
+    if (status === 401) {
+      if (!isAuthMeRequest && !isAuthRequest) {
         // Clear the invalid token
         localStorage.removeItem("authToken");
         delete apiClient.defaults.headers.common["Authorization"];
         delete apiClient.defaults.headers.Authorization;
 
-        console.log("Token expired or invalid, cleared from storage");
+        console.log("Token expired or invalid, redirecting to login");
+        
+        // Redirect to login page
+        if (window.location.pathname !== "/auth") {
+          window.location.href = "/auth";
+        }
       }
-    } else if (error.response?.status === 403) {
-      console.error(
-        "Access forbidden. User may not have required permissions."
-      );
-    } else if (error.response?.status === 500) {
+    } 
+    // Handle 403 Forbidden - user doesn't have permission
+    else if (status === 403) {
+      console.error("Access forbidden. User may not have required permissions.");
+      
+      // Check if it's a shop-related error (invalid shopId)
+      const errorMessage = error.response?.data?.message || "";
+      if (errorMessage.toLowerCase().includes("shop") || 
+          errorMessage.toLowerCase().includes("not authorized") ||
+          errorMessage.toLowerCase().includes("access denied")) {
+        // Redirect to shops page if shop access is denied
+        if (window.location.pathname !== "/shops") {
+          console.log("Shop access denied, redirecting to shops page");
+          window.location.href = "/shops";
+        }
+      } else if (!isAuthRequest && window.location.pathname !== "/auth") {
+        // For other 403 errors, redirect to login
+        localStorage.removeItem("authToken");
+        delete apiClient.defaults.headers.common["Authorization"];
+        delete apiClient.defaults.headers.Authorization;
+        window.location.href = "/auth";
+      }
+    } 
+    // Handle 500 Internal Server Error
+    else if (status === 500) {
       console.error("Server error occurred:", error.response.data);
     }
 
