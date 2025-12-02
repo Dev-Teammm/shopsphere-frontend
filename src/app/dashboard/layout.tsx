@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { Sidebar } from "@/components/dashboard/sidebar";
 import { Header } from "@/components/dashboard/header";
 import { DashboardProvider } from "@/components/dashboard/dashboard-context";
@@ -16,11 +16,24 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [title, setTitle] = useState("Dashboard");
   const { user } = useAppSelector((state) => state.auth);
   const router = useRouter();
 
   useEffect(() => {
+    const shopSlug = searchParams.get("shopSlug");
+
+    // For shop-scoped roles, require a shopSlug in the URL, otherwise send them back to shops selector
+    if (
+      user &&
+      (user.role === UserRole.VENDOR || user.role === UserRole.EMPLOYEE) &&
+      !shopSlug
+    ) {
+      router.replace("/shops");
+      return;
+    }
+
     // Redirect delivery agents to their portal
     if (user && user.role === UserRole.DELIVERY_AGENT) {
       router.replace("/delivery-agent/dashboard");
@@ -43,10 +56,10 @@ export default function DashboardLayout({
     } else if (pathname === "/dashboard/settings") {
       setTitle("Settings");
     }
-  }, [pathname, user, router]);
+  }, [pathname, user, router, searchParams]);
 
   return (
-    <ProtectedRoute allowedRoles={[UserRole.ADMIN, UserRole.EMPLOYEE]}>
+    <ProtectedRoute allowedRoles={[UserRole.ADMIN, UserRole.EMPLOYEE, UserRole.VENDOR]}>
       <DashboardProvider>
         <div className="flex h-screen overflow-hidden">
           <div className="hidden md:block">

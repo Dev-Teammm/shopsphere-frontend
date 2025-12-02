@@ -60,16 +60,40 @@ function ShopsPageContent() {
     }
   }, [shopsError, toast, router]);
 
-  const handleOpenShop = (shopId: string) => {
+  const handleOpenShop = (shop: ShopDTO) => {
+    // We now navigate using the shop slug, not the internal ID
+    const slug = shop.slug;
+    if (!slug) {
+      toast({
+        title: "Cannot open shop",
+        description: "This shop is missing a valid slug. Please contact support.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Delivery agents have their own dashboard
     if (user?.role === UserRole.DELIVERY_AGENT) {
-      router.push(`/delivery-agent/dashboard?shopId=${shopId}`);
-    } else if (
+      router.push(`/delivery-agent/dashboard?shopSlug=${encodeURIComponent(slug)}`);
+      return;
+    }
+
+    // Vendors, employees and admins go to the main dashboard with shopSlug
+    if (
       user?.role === UserRole.VENDOR ||
       user?.role === UserRole.EMPLOYEE ||
       user?.role === UserRole.ADMIN
     ) {
-      router.push(`/dashboard?shopId=${shopId}`);
+      router.push(`/dashboard?shopSlug=${encodeURIComponent(slug)}`);
+      return;
     }
+
+    // Fallback: if somehow role is missing / unsupported, show a message
+    toast({
+      title: "Cannot open shop",
+      description: "Your role is not allowed to access this shop dashboard.",
+      variant: "destructive",
+    });
   };
 
   const handleCreateShop = () => {
@@ -224,7 +248,7 @@ function ShopsPageContent() {
               </CardContent>
               <CardFooter>
                 <Button
-                  onClick={() => handleOpenShop(shop.shopId)}
+                  onClick={() => handleOpenShop(shop)}
                   className="w-full gap-2"
                   size="lg"
                   disabled={shop.status === "SUSPENDED" || shop.status === "INACTIVE"}
