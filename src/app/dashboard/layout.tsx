@@ -22,21 +22,34 @@ export default function DashboardLayout({
   const { user } = useAppSelector((state: RootState) => state.auth);
   const router = useRouter();
 
+  const { checkingAuth } = useAppSelector((state: RootState) => state.auth);
+
   useEffect(() => {
+    // Wait for auth check to complete before checking shopSlug
+    if (checkingAuth || !user) {
+      return;
+    }
+
     const shopSlug = searchParams.get("shopSlug");
 
     // For shop-scoped roles, require a shopSlug in the URL, otherwise send them back to shops selector
+    // But preserve the current pathname in case they come back
     if (
-      user &&
       (user.role === UserRole.VENDOR || user.role === UserRole.EMPLOYEE) &&
       !shopSlug
     ) {
-      router.replace("/shops");
+      // Only redirect if we're not already on the shops page
+      if (pathname !== "/shops") {
+        const returnUrl = searchParams.toString() 
+          ? `${pathname}?${searchParams.toString()}`
+          : pathname;
+        router.replace(`/shops?returnUrl=${encodeURIComponent(returnUrl)}`);
+      }
       return;
     }
 
     // Redirect delivery agents to their portal
-    if (user && user.role === UserRole.DELIVERY_AGENT) {
+    if (user.role === UserRole.DELIVERY_AGENT) {
       router.replace("/delivery-agent/dashboard");
       return;
     }
@@ -57,7 +70,7 @@ export default function DashboardLayout({
     } else if (pathname === "/dashboard/settings") {
       setTitle("Settings");
     }
-  }, [pathname, user, router, searchParams]);
+  }, [pathname, user, router, searchParams, checkingAuth]);
 
   return (
     <ProtectedRoute allowedRoles={[UserRole.ADMIN, UserRole.EMPLOYEE, UserRole.VENDOR]}>

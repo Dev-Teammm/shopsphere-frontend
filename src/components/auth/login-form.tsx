@@ -64,19 +64,23 @@ export function LoginForm() {
   // Redirect if already authenticated
   useEffect(() => {
     if (isAuthenticated && !authLoading && user) {
-      if (
+      // If returnUrl is provided and valid, use it
+      if (returnUrl && returnUrl !== "/auth" && returnUrl.startsWith("/")) {
+        router.replace(returnUrl);
+      } else if (
         user.role === UserRole.VENDOR ||
         user.role === UserRole.CUSTOMER ||
         user.role === UserRole.EMPLOYEE ||
-        user.role === UserRole.DELIVERY_AGENT ||
         user.role === UserRole.ADMIN
       ) {
         router.replace("/shops");
+      } else if (user.role === UserRole.DELIVERY_AGENT) {
+        router.replace("/delivery-agent/dashboard");
       } else {
-        router.replace("/auth");
+        router.replace("/dashboard");
       }
     }
-  }, [isAuthenticated, router, authLoading, user]);
+  }, [isAuthenticated, router, authLoading, user, returnUrl]);
 
   // Show auth error if any
   useEffect(() => {
@@ -115,18 +119,22 @@ export function LoginForm() {
         description: data.message || "Logged in successfully",
       });
 
-      if (
+      // If returnUrl is provided and valid, use it
+      // Otherwise, redirect based on role
+      if (returnUrl && returnUrl !== "/auth" && returnUrl.startsWith("/")) {
+        router.replace(returnUrl);
+      } else if (
         data.role === UserRole.VENDOR ||
         data.role === UserRole.CUSTOMER ||
         data.role === UserRole.EMPLOYEE ||
-        data.role === UserRole.DELIVERY_AGENT ||
         data.role === UserRole.ADMIN
       ) {
         router.replace("/shops");
-        return;
+      } else if (data.role === UserRole.DELIVERY_AGENT) {
+        router.replace("/delivery-agent/dashboard");
+      } else {
+        router.replace("/dashboard");
       }
-
-      router.replace(returnUrl);
     },
     onError: (error) => {
       const errorMessage = handleApiError(error);

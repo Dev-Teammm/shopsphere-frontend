@@ -47,22 +47,30 @@ apiClient.interceptors.response.use(
 
     const status = error.response?.status;
     const isAuthMeRequest = error.config?.url?.includes("/auth/me");
-    const isAuthRequest = error.config?.url?.includes("/auth/");
+    const isAuthRequest = error.config?.url?.includes("/auth/login") || 
+                          error.config?.url?.includes("/auth/register");
+    const currentPath = window.location.pathname;
 
     // Handle 401 Unauthorized - token expired or invalid
     if (status === 401) {
-      if (!isAuthMeRequest && !isAuthRequest) {
+      // Don't redirect if it's the /me endpoint (let AuthChecker handle it)
+      // Don't redirect if we're already on auth page
+      if (!isAuthMeRequest && !isAuthRequest && currentPath !== "/auth") {
         // Clear the invalid token
         localStorage.removeItem("authToken");
+        sessionStorage.removeItem("authChecked");
         delete apiClient.defaults.headers.common["Authorization"];
         delete apiClient.defaults.headers.Authorization;
 
         console.log("Token expired or invalid, redirecting to login");
         
-        // Redirect to login page
-        if (window.location.pathname !== "/auth") {
-          window.location.href = "/auth";
-        }
+        // Preserve current URL for return after login
+        const returnUrl = window.location.search 
+          ? `${currentPath}${window.location.search}`
+          : currentPath;
+        
+        // Redirect to login page with return URL
+        window.location.href = `/auth?returnUrl=${encodeURIComponent(returnUrl)}`;
       }
     } 
     // Handle 403 Forbidden - user doesn't have permission
@@ -73,18 +81,24 @@ apiClient.interceptors.response.use(
       const errorMessage = error.response?.data?.message || "";
       if (errorMessage.toLowerCase().includes("shop") || 
           errorMessage.toLowerCase().includes("not authorized") ||
-          errorMessage.toLowerCase().includes("access denied")) {
+          errorMessage.toLowerCase().includes("access denied") ||
+          errorMessage.toLowerCase().includes("cannot manage")) {
         // Redirect to shops page if shop access is denied
-        if (window.location.pathname !== "/shops") {
+        if (currentPath !== "/shops") {
           console.log("Shop access denied, redirecting to shops page");
           window.location.href = "/shops";
         }
-      } else if (!isAuthRequest && window.location.pathname !== "/auth") {
-        // For other 403 errors, redirect to login
+      } else if (!isAuthRequest && currentPath !== "/auth") {
+        // For other 403 errors (like unauthorized role), redirect to login
         localStorage.removeItem("authToken");
+        sessionStorage.removeItem("authChecked");
         delete apiClient.defaults.headers.common["Authorization"];
         delete apiClient.defaults.headers.Authorization;
-        window.location.href = "/auth";
+        
+        const returnUrl = window.location.search 
+          ? `${currentPath}${window.location.search}`
+          : currentPath;
+        window.location.href = `/auth?returnUrl=${encodeURIComponent(returnUrl)}`;
       }
     } 
     // Handle 500 Internal Server Error

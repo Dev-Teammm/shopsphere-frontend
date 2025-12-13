@@ -1,13 +1,32 @@
 import { createSlice, PayloadAction } from "@reduxjs/toolkit";
 import { AuthState, User } from "../types";
 
-const initialState: AuthState = {
-  user: null,
-  isAuthenticated: false,
-  isLoading: false,
-  error: null,
-  checkingAuth: false, // Start as false, will be set to true when auth check starts
+// Initialize auth state optimistically from token if it exists
+// This prevents redirect loops on page reload
+const getInitialAuthState = (): AuthState => {
+  if (typeof window === "undefined") {
+    return {
+      user: null,
+      isAuthenticated: false,
+      isLoading: false,
+      error: null,
+      checkingAuth: false,
+    };
+  }
+
+  const token = localStorage.getItem("authToken");
+  // If token exists, optimistically set as authenticated
+  // AuthChecker will verify this in the background
+  return {
+    user: null,
+    isAuthenticated: !!token, // Optimistic: true if token exists
+    isLoading: false,
+    error: null,
+    checkingAuth: !!token, // Will be verified by AuthChecker
+  };
 };
+
+const initialState: AuthState = getInitialAuthState();
 
 export const authSlice = createSlice({
   name: "auth",

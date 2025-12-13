@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { shopService, ShopDTO } from "@/lib/services/shop-service";
 import { useAppSelector } from "@/lib/redux/hooks";
@@ -20,6 +20,7 @@ import { CreateShopDialog } from "@/components/shops/create-shop-dialog";
 
 function ShopsPageContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { toast } = useToast();
   const { user } = useAppSelector((state: RootState) => state.auth);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
@@ -73,9 +74,33 @@ function ShopsPageContent() {
       return;
     }
 
+    // Check if there's a returnUrl to navigate back to
+    const returnUrl = searchParams.get("returnUrl");
+    let targetUrl: string;
+
+    if (returnUrl) {
+      // Parse the returnUrl and add shopSlug to it
+      try {
+        const url = new URL(returnUrl, window.location.origin);
+        url.searchParams.set("shopSlug", slug);
+        targetUrl = url.pathname + url.search;
+      } catch {
+        // If returnUrl is not a full URL, treat it as a path
+        const separator = returnUrl.includes("?") ? "&" : "?";
+        targetUrl = `${returnUrl}${separator}shopSlug=${encodeURIComponent(slug)}`;
+      }
+    } else {
+      // No returnUrl, use default dashboard
+      targetUrl = `/dashboard?shopSlug=${encodeURIComponent(slug)}`;
+    }
+
     // Delivery agents have their own dashboard
     if (user?.role === UserRole.DELIVERY_AGENT) {
-      router.push(`/delivery-agent/dashboard?shopSlug=${encodeURIComponent(slug)}`);
+      if (returnUrl) {
+        router.push(targetUrl);
+      } else {
+        router.push(`/delivery-agent/dashboard?shopSlug=${encodeURIComponent(slug)}`);
+      }
       return;
     }
 
@@ -85,7 +110,7 @@ function ShopsPageContent() {
       user?.role === UserRole.EMPLOYEE ||
       user?.role === UserRole.ADMIN
     ) {
-      router.push(`/dashboard?shopSlug=${encodeURIComponent(slug)}`);
+      router.push(targetUrl);
       return;
     }
 
