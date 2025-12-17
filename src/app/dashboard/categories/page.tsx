@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/components/ui/use-toast";
 import { Button } from "@/components/ui/button";
@@ -97,16 +97,90 @@ import {
 } from "@/lib/types/brand";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useDashboard } from "@/components/dashboard/dashboard-context";
+import { useSearchParams, useRouter } from "next/navigation";
+import { shopService } from "@/lib/services/shop-service";
 
 export default function CategoriesPage() {
   const toast = useToast();
   const queryClient = useQueryClient();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const shopSlug = searchParams.get("shopSlug");
+  
   const {
     isCreateCategoryDialogOpen,
     setIsCreateCategoryDialogOpen,
     isCreateBrandDialogOpen,
     setIsCreateBrandDialogOpen,
   } = useDashboard();
+  
+  // Fetch shop by slug to get shopId
+  const { data: shopData, isLoading: isLoadingShop, isError: isErrorShop } = useQuery({
+    queryKey: ["shop", shopSlug],
+    queryFn: () => shopService.getShopBySlug(shopSlug!),
+    enabled: !!shopSlug,
+  });
+  
+  // Extract shopId with validation
+  const shopId = shopData?.shopId;
+  
+  // Use ref to always have access to latest shopId in mutation closures
+  const shopIdRef = useRef<string | undefined>(shopId);
+  
+  // Update ref whenever shopId changes and store in sessionStorage for API client safety net
+  useEffect(() => {
+    shopIdRef.current = shopId;
+    console.log("[Ref] shopId ref updated:", shopId);
+    
+    // Store shopId in sessionStorage for API client safety net
+    if (shopSlug && shopId) {
+      sessionStorage.setItem(`shopId_${shopSlug}`, shopId);
+      console.log("[Ref] shopId stored in sessionStorage:", shopId);
+    }
+  }, [shopId, shopSlug]);
+  
+  // Debug shop data extraction
+  useEffect(() => {
+    if (shopSlug) {
+      console.log("Shop data extraction:", {
+        shopSlug,
+        shopData,
+        shopId,
+        shopIdRef: shopIdRef.current,
+        shopIdType: typeof shopId,
+        shopIdValid: shopId && typeof shopId === 'string' && shopId.trim() !== '',
+        isLoadingShop,
+        isErrorShop,
+      });
+    }
+  }, [shopSlug, shopData, shopId, isLoadingShop, isErrorShop]);
+  
+  // Debug logging
+  useEffect(() => {
+    if (shopSlug) {
+      console.log("Shop query state:", {
+        shopSlug,
+        shopId,
+        shopData,
+        isLoadingShop,
+        isErrorShop,
+      });
+    }
+  }, [shopSlug, shopId, shopData, isLoadingShop, isErrorShop]);
+  
+  // Redirect to shops page if shopSlug is missing or shop fetch fails
+  useEffect(() => {
+    if (shopSlug) {
+      if (isErrorShop || (!isLoadingShop && !shopId)) {
+        toast.toast({
+          title: "Error",
+          description: "Shop not found. Redirecting to shops page.",
+          variant: "destructive",
+        });
+        router.push("/shops");
+      }
+    }
+  }, [shopSlug, isErrorShop, isLoadingShop, shopId, router, toast]);
 
   // States for category management
   const [currentParentId, setCurrentParentId] = useState<number | null>(null);
@@ -185,6 +259,7 @@ export default function CategoriesPage() {
       pageSize,
       sortBy,
       sortDir,
+      shopId,
     ],
     queryFn: async () => {
       if (currentParentId === null) {
@@ -192,12 +267,14 @@ export default function CategoriesPage() {
           currentPage,
           pageSize,
           sortBy,
-          sortDir
+          sortDir,
+          shopId
         );
       } else {
         return await adminCategoryService.getSubcategories(currentParentId);
       }
     },
+    enabled: !isLoadingShop && (shopSlug ? !!shopId : true),
   });
 
   // Extract categories from the response
@@ -222,8 +299,48 @@ export default function CategoriesPage() {
 
   // Mutations for CRUD operations
   const createCategoryMutation = useMutation({
-    mutationFn: (data: CategoryCreateRequest) =>
-      adminCategoryService.createCategory(data),
+    mutationFn: (data: CategoryCreateRequest) => {
+      // CRITICAL: Always ensure shopId is included if shopSlug is present
+      // Use ref to get the latest shopId value (not closure value)
+      const finalData: CategoryCreateRequest = { ...data };
+      
+      // Get current shopSlug from searchParams (we'll need to get it fresh)
+      const currentShopSlug = new URLSearchParams(window.location.search).get('shopSlug');
+      
+      // If shopSlug is present, shopId MUST be included
+      if (currentShopSlug) {
+        // Use shopId from ref (always current), data parameter, or closure
+        const currentShopId = shopIdRef.current || data.shopId || shopId;
+        
+        console.log("[Mutation] shopId sources:", {
+          fromRef: shopIdRef.current,
+          fromData: data.shopId,
+          fromClosure: shopId,
+          selected: currentShopId,
+        });
+        
+        if (!currentShopId || typeof currentShopId !== 'string' || currentShopId.trim() === '') {
+          console.error("[Mutation] CRITICAL: shopId is missing or invalid!", {
+            shopSlug: currentShopSlug,
+            shopIdFromRef: shopIdRef.current,
+            shopIdFromData: data.shopId,
+            shopIdFromClosure: shopId,
+            currentShopId,
+            shopData,
+          });
+          throw new Error("Shop ID is required but missing. Please refresh the page and try again.");
+        }
+        
+        // Always set shopId - this ensures it's in the payload
+        finalData.shopId = currentShopId;
+        console.log("[Mutation] ✓ shopId included in category data:", currentShopId);
+      }
+      
+      console.log("[Mutation] Final category data being sent:", JSON.stringify(finalData, null, 2));
+      console.log("[Mutation] Payload verification - shopId present:", !!finalData.shopId, "value:", finalData.shopId);
+      console.log("[Mutation] Payload keys:", Object.keys(finalData));
+      return adminCategoryService.createCategory(finalData);
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["categories"] });
       queryClient.invalidateQueries({ queryKey: ["allCategories"] });
@@ -295,15 +412,57 @@ export default function CategoriesPage() {
     isError: isErrorBrands,
     error: errorBrands,
   } = useQuery({
-    queryKey: ["brands", currentPage, pageSize, brandSortBy, sortDir],
+    queryKey: ["brands", currentPage, pageSize, brandSortBy, sortDir, shopId],
     queryFn: () =>
-      brandService.getAllBrands(currentPage, pageSize, brandSortBy, sortDir),
+      brandService.getAllBrands(currentPage, pageSize, brandSortBy, sortDir, shopId),
+    enabled: !isLoadingShop && (shopSlug ? !!shopId : true),
   });
 
   const brands = brandsData?.content || [];
 
   const createBrandMutation = useMutation({
-    mutationFn: (data: CreateBrandRequest) => brandService.createBrand(data),
+    mutationFn: (data: CreateBrandRequest) => {
+      // CRITICAL: Always ensure shopId is included if shopSlug is present
+      // Use ref to get the latest shopId value (not closure value)
+      const finalData: CreateBrandRequest = { ...data };
+      
+      // Get current shopSlug from searchParams (we'll need to get it fresh)
+      const currentShopSlug = new URLSearchParams(window.location.search).get('shopSlug');
+      
+      // If shopSlug is present, shopId MUST be included
+      if (currentShopSlug) {
+        // Use shopId from ref (always current), data parameter, or closure
+        const currentShopId = shopIdRef.current || data.shopId || shopId;
+        
+        console.log("[Mutation] shopId sources:", {
+          fromRef: shopIdRef.current,
+          fromData: data.shopId,
+          fromClosure: shopId,
+          selected: currentShopId,
+        });
+        
+        if (!currentShopId || typeof currentShopId !== 'string' || currentShopId.trim() === '') {
+          console.error("[Mutation] CRITICAL: shopId is missing or invalid!", {
+            shopSlug: currentShopSlug,
+            shopIdFromRef: shopIdRef.current,
+            shopIdFromData: data.shopId,
+            shopIdFromClosure: shopId,
+            currentShopId,
+            shopData,
+          });
+          throw new Error("Shop ID is required but missing. Please refresh the page and try again.");
+        }
+        
+        // Always set shopId - this ensures it's in the payload
+        finalData.shopId = currentShopId;
+        console.log("[Mutation] ✓ shopId included in brand data:", currentShopId);
+      }
+      
+      console.log("[Mutation] Final brand data being sent:", JSON.stringify(finalData, null, 2));
+      console.log("[Mutation] Payload verification - shopId present:", !!finalData.shopId, "value:", finalData.shopId);
+      console.log("[Mutation] Payload keys:", Object.keys(finalData));
+      return brandService.createBrand(finalData);
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["brands"] });
       toast.toast({
@@ -418,6 +577,38 @@ export default function CategoriesPage() {
 
   // Handle create category
   const handleCreateCategory = () => {
+    console.log("handleCreateCategory called - shopSlug:", shopSlug, "shopId:", shopId, "shopData:", shopData);
+    
+    // For VENDOR/EMPLOYEE, shopId is required when shopSlug is present
+    if (shopSlug) {
+      if (isLoadingShop) {
+        console.warn("Shop is still loading, preventing category creation");
+        toast.toast({
+          title: "Please wait",
+          description: "Shop information is loading. Please try again in a moment.",
+          variant: "default",
+        });
+        return;
+      }
+      
+      if (!shopId) {
+        console.error("CRITICAL: shopId is missing but shopSlug is present!", { 
+          shopSlug, 
+          shopId, 
+          shopData,
+          isLoadingShop,
+          isErrorShop 
+        });
+        toast.toast({
+          title: "Error",
+          description: "Shop ID is missing. Please refresh the page and try again.",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+    
+    // Build category data - ALWAYS include shopId when shopSlug is present
     const categoryData: CategoryCreateRequest = {
       name: formName,
       description: formDescription || undefined,
@@ -430,7 +621,37 @@ export default function CategoriesPage() {
       metaDescription: formMetaDescription || undefined,
       metaKeywords: formMetaKeywords || undefined,
     };
+    
+    // CRITICAL: Always include shopId when shopSlug is present (required for VENDOR/EMPLOYEE)
+    // Use explicit check to ensure shopId is a valid string
+    if (shopSlug && shopId && typeof shopId === 'string' && shopId.trim() !== '') {
+      categoryData.shopId = shopId;
+      console.log("✓ shopId included in category data:", shopId);
+    } else if (shopSlug) {
+      console.error("✗ shopId validation failed:", { shopSlug, shopId, type: typeof shopId });
+      toast.toast({
+        title: "Error",
+        description: "Invalid shop ID. Please refresh the page and try again.",
+        variant: "destructive",
+      });
+      return;
+    }
 
+    console.log("Creating category with FULL data:", JSON.stringify(categoryData, null, 2));
+    console.log("Verification - shopId in payload:", categoryData.shopId);
+    console.log("Payload keys:", Object.keys(categoryData));
+    
+    // Final validation before sending
+    if (shopSlug && !categoryData.shopId) {
+      console.error("FINAL CHECK FAILED: shopId missing from payload!", categoryData);
+      toast.toast({
+        title: "Error",
+        description: "Shop ID is missing from request. Please refresh and try again.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
     createCategoryMutation.mutate(categoryData);
   };
 
@@ -1140,7 +1361,11 @@ export default function CategoriesPage() {
                 <Button
                   type="button"
                   onClick={handleCreateCategory}
-                  disabled={!formName || createCategoryMutation.isPending}
+                  disabled={
+                    !formName || 
+                    createCategoryMutation.isPending || 
+                    (shopSlug && (!shopId || isLoadingShop))
+                  }
                   className="bg-primary hover:bg-primary/90"
                 >
                   {createCategoryMutation.isPending ? (
@@ -1913,6 +2138,8 @@ export default function CategoriesPage() {
             </Button>
             <Button
               onClick={() => {
+                console.log("handleCreateBrand called - shopSlug:", shopSlug, "shopId:", shopId, "shopData:", shopData);
+                
                 if (!brandFormName.trim()) {
                   toast.toast({
                     title: "Error",
@@ -1921,16 +2148,89 @@ export default function CategoriesPage() {
                   });
                   return;
                 }
-                createBrandMutation.mutate({
+                
+                // For VENDOR/EMPLOYEE, shopId is required when shopSlug is present
+                if (shopSlug) {
+                  if (isLoadingShop) {
+                    console.warn("Shop is still loading, preventing brand creation");
+                    toast.toast({
+                      title: "Please wait",
+                      description: "Shop information is loading. Please try again in a moment.",
+                      variant: "default",
+                    });
+                    return;
+                  }
+                  
+                  if (!shopId) {
+                    console.error("CRITICAL: shopId is missing but shopSlug is present!", { 
+                      shopSlug, 
+                      shopId, 
+                      shopData,
+                      isLoadingShop,
+                      isErrorShop 
+                    });
+                    toast.toast({
+                      title: "Error",
+                      description: "Shop ID is missing. Please refresh the page and try again.",
+                      variant: "destructive",
+                    });
+                    return;
+                  }
+                }
+                
+                const brandData: CreateBrandRequest = {
                   brandName: brandFormName.trim(),
                   description: brandFormDescription.trim() || undefined,
                   logoUrl: brandFormLogoUrl.trim() || undefined,
                   websiteUrl: brandFormWebsiteUrl.trim() || undefined,
                   isActive: brandFormIsActive,
                   isFeatured: brandFormIsFeatured,
-                });
+                };
+                
+                // CRITICAL: Always include shopId when shopSlug is present (required for VENDOR/EMPLOYEE)
+                // Use explicit check to ensure shopId is a valid string
+                // Also try using the ref value as a fallback
+                const currentShopIdForBrand = shopId || shopIdRef.current;
+                if (shopSlug && currentShopIdForBrand && typeof currentShopIdForBrand === 'string' && currentShopIdForBrand.trim() !== '') {
+                  brandData.shopId = currentShopIdForBrand;
+                  console.log("✓ shopId included in brand data (from handler):", currentShopIdForBrand);
+                } else if (shopSlug) {
+                  console.error("✗ shopId validation failed:", { 
+                    shopSlug, 
+                    shopId, 
+                    shopIdRef: shopIdRef.current,
+                    type: typeof shopId,
+                    typeRef: typeof shopIdRef.current
+                  });
+                  toast.toast({
+                    title: "Error",
+                    description: "Invalid shop ID. Please refresh the page and try again.",
+                    variant: "destructive",
+                  });
+                  return;
+                }
+                
+                console.log("Creating brand with FULL data:", JSON.stringify(brandData, null, 2));
+                console.log("Verification - shopId in payload:", brandData.shopId);
+                console.log("Payload keys:", Object.keys(brandData));
+                
+                // Final validation before sending
+                if (shopSlug && !brandData.shopId) {
+                  console.error("FINAL CHECK FAILED: shopId missing from payload!", brandData);
+                  toast.toast({
+                    title: "Error",
+                    description: "Shop ID is missing from request. Please refresh and try again.",
+                    variant: "destructive",
+                  });
+                  return;
+                }
+                
+                createBrandMutation.mutate(brandData);
               }}
-              disabled={createBrandMutation.isPending}
+              disabled={
+                createBrandMutation.isPending || 
+                (shopSlug && (!shopId || isLoadingShop))
+              }
             >
               {createBrandMutation.isPending ? (
                 <>

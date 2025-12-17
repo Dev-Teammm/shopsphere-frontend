@@ -32,6 +32,7 @@ export interface CategoryCreateRequest {
   metaTitle?: string;
   metaDescription?: string;
   metaKeywords?: string;
+  shopId?: string;
 }
 
 export interface CategoryUpdateRequest {

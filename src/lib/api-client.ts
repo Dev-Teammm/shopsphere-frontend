@@ -19,6 +19,41 @@ apiClient.interceptors.request.use(
       console.log(`[API Client] Detected FormData, removed Content-Type header for: ${config.url}`);
     }
     
+    // Log request data for debugging (especially for category/brand creation)
+    if (config.url?.includes("/categories") && config.method === "post") {
+      console.log("[API Client] Category creation request payload:", JSON.stringify(config.data, null, 2));
+      console.log("[API Client] shopId in request:", config.data?.shopId);
+    }
+    
+    if (config.url?.includes("/brands") && config.method === "post") {
+      console.log("[API Client] Brand creation request payload:", JSON.stringify(config.data, null, 2));
+      console.log("[API Client] shopId in request:", config.data?.shopId);
+      console.log("[API Client] Full request config.data:", config.data);
+    }
+    
+    // Safety net: If shopSlug is in URL but shopId is missing from payload, try to inject it
+    // This is a last resort - the mutation should handle this, but this ensures it's always there
+    if (typeof window !== "undefined" && config.data && typeof config.data === "object" && !Array.isArray(config.data) && !(config.data instanceof FormData)) {
+      const urlParams = new URLSearchParams(window.location.search);
+      const shopSlug = urlParams.get("shopSlug");
+      
+      if (shopSlug && !config.data.shopId) {
+        // Try to get shopId from sessionStorage or localStorage (if we stored it)
+        const storedShopId = sessionStorage.getItem(`shopId_${shopSlug}`) || localStorage.getItem(`shopId_${shopSlug}`);
+        
+        if (storedShopId) {
+          console.warn("[API Client] shopId missing from payload but found in storage, injecting:", storedShopId);
+          config.data.shopId = storedShopId;
+        } else {
+          console.error("[API Client] CRITICAL: shopSlug in URL but shopId missing from payload and storage!", {
+            url: config.url,
+            shopSlug,
+            payload: config.data,
+          });
+        }
+      }
+    }
+    
     // Only add token if we're in the browser
     if (typeof window !== "undefined") {
       const token = localStorage.getItem("authToken");

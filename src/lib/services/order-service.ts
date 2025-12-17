@@ -24,12 +24,14 @@ class OrderService {
 
   /**
    * Get all orders for admin dashboard with pagination
+   * @param shopId Optional shop ID to filter orders by shop
    */
   async getAllOrdersPaginated(
     page: number = 0,
     size: number = 15,
     sortBy: string = "createdAt",
-    sortDir: string = "desc"
+    sortDir: string = "desc",
+    shopId?: string
   ): Promise<{
     data: AdminOrderDTO[];
     pagination: {
@@ -44,14 +46,26 @@ class OrderService {
     };
   }> {
     try {
+      const params: any = { page, size, sortBy, sortDir };
+      if (shopId) {
+        params.shopId = shopId;
+      }
       const response = await apiClient.get<any>(
-        `${API_ENDPOINTS.ADMIN_ORDERS.ALL}?page=${page}&size=${size}&sortBy=${sortBy}&sortDir=${sortDir}`
+        API_ENDPOINTS.ADMIN_ORDERS.ALL,
+        { params }
       );
       return {
         data: response.data.data,
         pagination: response.data.pagination,
       };
-    } catch (error) {
+    } catch (error: any) {
+      // Handle shop-related errors
+      if (error.response?.status === 403 || error.response?.status === 400) {
+        const errorMessage = error.response?.data?.message || "Access denied to this shop";
+        if (errorMessage.toLowerCase().includes("shop") || errorMessage.toLowerCase().includes("authorized")) {
+          throw new Error(errorMessage);
+        }
+      }
       console.error("Error fetching paginated orders:", error);
       throw error;
     }
@@ -78,6 +92,7 @@ class OrderService {
     paymentMethod?: string;
     trackingNumber?: string;
     searchKeyword?: string;
+    shopId?: string;
     page?: number;
     size?: number;
     sortBy?: string;

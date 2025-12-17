@@ -56,10 +56,26 @@ import { ShippingCostFilters } from "@/lib/types/shipping";
 import { useToast } from "@/hooks/use-toast";
 import { CreateShippingCostForm } from "@/components/shipping/CreateShippingCostForm";
 import { EditShippingCostForm } from "@/components/shipping/EditShippingCostForm";
+import { useSearchParams } from "next/navigation";
+import { shopService } from "@/lib/services/shop-service";
 
 export default function ShippingCostsPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const searchParams = useSearchParams();
+  const shopSlug = searchParams.get("shopSlug");
+
+  const {
+    data: shopData,
+    isLoading: isLoadingShop,
+    isError: isErrorShop,
+  } = useQuery({
+    queryKey: ["shop", shopSlug],
+    queryFn: () => shopService.getShopBySlug(shopSlug!),
+    enabled: !!shopSlug,
+  });
+
+  const shopId = shopData?.shopId;
 
   const [page, setPage] = useState(0);
   const [size] = useState(10);
@@ -76,22 +92,24 @@ export default function ShippingCostsPage() {
     isLoading,
     error,
   } = useQuery({
-    queryKey: ["shipping-costs", page, size, filters],
+    queryKey: ["shipping-costs", shopId, page, size, filters],
     queryFn: () => {
       if (filters.search) {
         return shippingCostService.searchShippingCosts(
           filters.search,
           page,
-          size
+          size,
+          shopId!
         );
       }
-      return shippingCostService.getAllShippingCosts(page, size);
+      return shippingCostService.getAllShippingCosts(page, size, shopId!);
     },
+    enabled: !!shopSlug && !!shopId && !isLoadingShop && !isErrorShop,
   });
 
   // Delete mutation
   const deleteMutation = useMutation({
-    mutationFn: (id: number) => shippingCostService.deleteShippingCost(id),
+    mutationFn: (id: number) => shippingCostService.deleteShippingCost(id, shopId!),
     onSuccess: () => {
       toast({
         title: "Success",
@@ -112,7 +130,7 @@ export default function ShippingCostsPage() {
 
   // Toggle active status mutation
   const toggleActiveMutation = useMutation({
-    mutationFn: (id: number) => shippingCostService.toggleShippingCostStatus(id),
+    mutationFn: (id: number) => shippingCostService.toggleShippingCostStatus(id, shopId!),
     onSuccess: () => {
       toast({
         title: "Success",
@@ -170,6 +188,30 @@ export default function ShippingCostsPage() {
     if (value === undefined || value === null) return "N/A";
     return value.toFixed(decimals);
   };
+
+  if (!shopSlug) {
+    return (
+      <div className="p-6">
+        <Alert variant="destructive">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription>
+            Missing shopSlug. Please open this page from a shop context.
+          </AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
+
+  if (isLoadingShop || !shopId) {
+    return (
+      <div className="p-6">
+        <Alert>
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription>Loading shop information…</AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
 
   if (error) {
     return (
@@ -385,6 +427,7 @@ export default function ShippingCostsPage() {
             </DialogDescription>
           </DialogHeader>
           <CreateShippingCostForm
+            shopId={shopId}
             onSuccess={() => {
               setIsCreateDialogOpen(false);
               queryClient.invalidateQueries({ queryKey: ["shipping-costs"] });
@@ -406,6 +449,7 @@ export default function ShippingCostsPage() {
           {selectedShippingCost && (
             <EditShippingCostForm
               shippingCost={selectedShippingCost}
+              shopId={shopId}
               onSuccess={() => {
                 setIsEditDialogOpen(false);
                 setSelectedShippingCost(null);

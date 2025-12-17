@@ -25,11 +25,16 @@ class BrandService {
     page: number = 0,
     size: number = 10,
     sortBy: string = "brandName",
-    sortDir: string = "asc"
+    sortDir: string = "asc",
+    shopId?: string
   ): Promise<BrandPageResponse> {
     try {
+      const params: any = { page, size, sortBy, sortDir };
+      if (shopId) {
+        params.shopId = shopId;
+      }
       const response = await apiClient.get(API_ENDPOINTS.BRANDS.BASE, {
-        params: { page, size, sortBy, sortDir },
+        params,
       });
       return response.data;
     } catch (error) {
@@ -86,9 +91,12 @@ class BrandService {
 
   async createBrand(brandData: CreateBrandRequest): Promise<BrandResponse> {
     try {
+      console.log("[BrandService] Creating brand with data:", JSON.stringify(brandData, null, 2));
+      console.log("[BrandService] shopId in payload:", brandData.shopId);
       const response = await apiClient.post(`/brands`, brandData);
       return response.data;
     } catch (error) {
+      console.error("[BrandService] Error creating brand:", error);
       throw handleApiError(error);
     }
   }

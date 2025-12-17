@@ -85,9 +85,14 @@ import {
   deliveryGroupService,
   DeliveryGroupDto,
 } from "@/lib/services/delivery-group-service";
+import { useSearchParams } from "next/navigation";
+import { useQuery } from "@tanstack/react-query";
+import { shopService } from "@/lib/services/shop-service";
 
 export default function OrdersPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const shopSlug = searchParams.get("shopSlug");
   const [searchTerm, setSearchTerm] = useState("");
   const [filtersOpen, setFiltersOpen] = useState(false);
   const isMobile = useMediaQuery("(max-width: 768px)");
@@ -119,13 +124,36 @@ export default function OrdersPage() {
     new Map()
   );
 
+  // Fetch shop data to get shopId
+  const { data: shopData, isLoading: shopLoading, error: shopError } = useQuery({
+    queryKey: ["shop", shopSlug],
+    queryFn: () => shopService.getShopBySlug(shopSlug!),
+    enabled: !!shopSlug,
+  });
+
+  const shopId = shopData?.shopId;
+
+  // Redirect if no shopSlug is provided
+  useEffect(() => {
+    if (!shopSlug) {
+      router.replace("/shops");
+    }
+  }, [shopSlug, router]);
+
   // Fetch orders from API
   useEffect(() => {
-    fetchOrders();
-  }, [currentPage]);
+    if (shopId || !shopSlug) {
+      fetchOrders();
+    }
+  }, [currentPage, shopId]);
 
   // Debounced search effect
   useEffect(() => {
+    if (!shopId && shopSlug) {
+      // Wait for shopId to be available
+      return;
+    }
+    
     const timer = setTimeout(() => {
       if (
         searchTerm.trim() ||
@@ -143,7 +171,7 @@ export default function OrdersPage() {
     }, 500); // 500ms debounce
 
     return () => clearTimeout(timer);
-  }, [searchTerm]);
+  }, [searchTerm, shopId, shopSlug]);
 
   const fetchOrders = async (useSearch: boolean = false) => {
     try {
@@ -190,6 +218,10 @@ export default function OrdersPage() {
           searchRequest.endDate = filters.endDate.toISOString();
         }
 
+        // Add shopId to search request if available
+        if (shopId) {
+          searchRequest.shopId = shopId;
+        }
         response = await orderService.searchOrders(searchRequest);
       } else {
         // Use regular pagination
@@ -197,7 +229,8 @@ export default function OrdersPage() {
           currentPage,
           pageSize,
           "createdAt",
-          "desc"
+          "desc",
+          shopId || undefined
         );
       }
 
@@ -206,8 +239,19 @@ export default function OrdersPage() {
       setTotalElements(response.pagination.totalElements);
       setHasNext(response.pagination.hasNext);
       setHasPrevious(response.pagination.hasPrevious);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error fetching orders:", error);
+      // Handle shop-related errors
+      if (error.response?.status === 403 || error.response?.status === 400) {
+        const errorMessage = error.response?.data?.message || "Access denied to this shop";
+        if (errorMessage.toLowerCase().includes("shop") || errorMessage.toLowerCase().includes("authorized")) {
+          toast.error("You don't have access to this shop's orders");
+          setTimeout(() => {
+            router.push("/shops");
+          }, 2000);
+          return;
+        }
+      }
       toast.error("Failed to load orders. Please try again.");
     } finally {
       setLoading(false);
@@ -358,6 +402,33 @@ export default function OrdersPage() {
         return "secondary";
     }
   };
+
+  // Show loading while fetching shop data
+  if (shopLoading || (!shopId && shopSlug)) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-sm text-muted-foreground">Loading shop information...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show error if shop fetch failed
+  if (shopError || (shopSlug && !shopData)) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen text-center gap-2">
+        <h2 className="text-2xl font-semibold">Shop not found</h2>
+        <p className="text-muted-foreground">
+          The shop you're looking for doesn't exist or you don't have access to it.
+        </p>
+        <Button onClick={() => router.push("/shops")} variant="outline" className="mt-4">
+          Return to Shops
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

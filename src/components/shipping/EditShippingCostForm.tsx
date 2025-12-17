@@ -65,12 +65,14 @@ type UpdateShippingCostFormData = z.infer<typeof updateShippingCostSchema>;
 
 interface EditShippingCostFormProps {
   shippingCost: ShippingCostDTO;
+  shopId: string;
   onSuccess: () => void;
   onCancel: () => void;
 }
 
 export function EditShippingCostForm({
   shippingCost,
+  shopId,
   onSuccess,
   onCancel,
 }: EditShippingCostFormProps) {
@@ -93,7 +95,7 @@ export function EditShippingCostForm({
 
   const updateMutation = useMutation({
     mutationFn: (data: UpdateShippingCostDTO) =>
-      shippingCostService.updateShippingCost(shippingCost.id, data),
+      shippingCostService.updateShippingCost(shippingCost.id, data, shopId),
     onSuccess: () => {
       toast({
         title: "Success",

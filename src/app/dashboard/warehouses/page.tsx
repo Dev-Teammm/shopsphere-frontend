@@ -46,7 +46,8 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { toast } from "@/hooks/use-toast";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import { shopService } from "@/lib/services/shop-service";
 
 export default function WarehousesPage() {
   const [page, setPage] = useState(0);
@@ -56,6 +57,36 @@ export default function WarehousesPage() {
     useState<WarehouseDTO | null>(null);
   const router = useRouter();
   const queryClient = useQueryClient();
+  const searchParams = useSearchParams();
+  
+  // Extract shopSlug from URL
+  const shopSlug = searchParams.get("shopSlug");
+  
+  // Fetch shop by slug to get shopId
+  const { data: shopData, isLoading: isLoadingShop, isError: isErrorShop } = useQuery({
+    queryKey: ["shop", shopSlug],
+    queryFn: () => shopService.getShopBySlug(shopSlug!),
+    enabled: !!shopSlug,
+  });
+  
+  const shopId = shopData?.shopId;
+
+  // Redirect to shops page if shopSlug is missing or shop fetch fails
+  useEffect(() => {
+    if (shopSlug) {
+      if (isErrorShop || (!isLoadingShop && !shopData)) {
+        toast({
+          title: "Error",
+          description: "Shop not found. Redirecting to shops page.",
+          variant: "destructive",
+        });
+        router.push("/shops");
+      }
+    } else {
+      // If no shopSlug, redirect to shops page
+      router.push("/shops");
+    }
+  }, [shopSlug, isLoadingShop, isErrorShop, shopData, router]);
 
   const {
     data: warehousesData,
@@ -63,13 +94,14 @@ export default function WarehousesPage() {
     error,
     refetch,
   } = useQuery({
-    queryKey: ["warehouses", page, size, searchQuery],
+    queryKey: ["warehouses", page, size, searchQuery, shopId],
     queryFn: () => {
       if (searchQuery.trim()) {
-        return warehouseService.searchWarehouses(searchQuery, page, size);
+        return warehouseService.searchWarehouses(searchQuery, page, size, shopId);
       }
-      return warehouseService.getWarehouses(page, size);
+      return warehouseService.getWarehouses(page, size, shopId);
     },
+    enabled: !isLoadingShop && (shopSlug ? !!shopId : true),
   });
 
   const deleteMutation = useMutation({
@@ -100,11 +132,13 @@ export default function WarehousesPage() {
   };
 
   const handleViewProducts = (warehouse: WarehouseDTO) => {
-    router.push(`/dashboard/warehouses/${warehouse.id}/products`);
+    const url = `/dashboard/warehouses/${warehouse.id}/products${shopSlug ? `?shopSlug=${shopSlug}` : ''}`;
+    router.push(url);
   };
 
   const handleEdit = (warehouse: WarehouseDTO) => {
-    router.push(`/dashboard/warehouses/${warehouse.id}/edit`);
+    const url = `/dashboard/warehouses/${warehouse.id}/edit${shopSlug ? `?shopSlug=${shopSlug}` : ''}`;
+    router.push(url);
   };
 
   const formatDate = (dateString: string) => {
@@ -114,6 +148,16 @@ export default function WarehousesPage() {
   const formatAddress = (warehouse: WarehouseDTO) => {
     return `${warehouse.address}, ${warehouse.city}, ${warehouse.state} ${warehouse.zipCode}, ${warehouse.country}`;
   };
+
+  // Show loading state while fetching shop data
+  if (isLoadingShop || (shopSlug && !shopId)) {
+    return (
+      <div className="p-6 space-y-6">
+        <Skeleton className="h-10 w-64" />
+        <Skeleton className="h-64 w-full" />
+      </div>
+    );
+  }
 
   if (error) {
     return (
@@ -137,7 +181,10 @@ export default function WarehousesPage() {
             Manage your warehouse locations and inventory
           </p>
         </div>
-        <Button onClick={() => router.push("/dashboard/warehouses/create")}>
+        <Button 
+          onClick={() => router.push(`/dashboard/warehouses/create${shopSlug ? `?shopSlug=${shopSlug}` : ''}`)}
+          disabled={isLoadingShop || (shopSlug && !shopId)}
+        >
           <Plus className="h-4 w-4 mr-2" />
           Add Warehouse
         </Button>
@@ -232,7 +279,10 @@ export default function WarehousesPage() {
                 ? "No warehouses match your search criteria."
                 : "Get started by creating your first warehouse."}
             </p>
-            <Button onClick={() => router.push("/dashboard/warehouses/create")}>
+            <Button 
+              onClick={() => router.push(`/dashboard/warehouses/create${shopSlug ? `?shopSlug=${shopSlug}` : ''}`)}
+              disabled={isLoadingShop || (shopSlug && !shopId)}
+            >
               <Plus className="h-4 w-4 mr-2" />
               Create Warehouse
             </Button>

@@ -8,12 +8,10 @@ export interface ShippingCostDTO {
   weightKgCost?: number;
   baseFee?: number;
   internationalFee?: number;
-  maxWeightKg?: number;
-  maxDistanceKm?: number;
   freeShippingThreshold?: number;
-  regionCode?: string;
   isActive: boolean;
-  priorityOrder: number;
+  shopId?: string;
+  shopName?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -25,12 +23,9 @@ export interface CreateShippingCostDTO {
   weightKgCost?: number;
   baseFee?: number;
   internationalFee?: number;
-  maxWeightKg?: number;
-  maxDistanceKm?: number;
   freeShippingThreshold?: number;
-  regionCode?: string;
   isActive: boolean;
-  priorityOrder?: number;
+  shopId: string;
 }
 
 export interface UpdateShippingCostDTO {
@@ -40,12 +35,8 @@ export interface UpdateShippingCostDTO {
   weightKgCost?: number;
   baseFee?: number;
   internationalFee?: number;
-  maxWeightKg?: number;
-  maxDistanceKm?: number;
   freeShippingThreshold?: number;
-  regionCode?: string;
   isActive?: boolean;
-  priorityOrder?: number;
 }
 
 export interface PaginatedResponse<T> {
@@ -81,6 +72,7 @@ export interface CalculateShippingCostRequest {
   weight?: number;
   distance?: number;
   orderValue?: number;
+  shopId: string;
 }
 
 export interface CalculateOrderShippingRequest {
@@ -96,6 +88,7 @@ export interface CalculateOrderShippingRequest {
     weight?: number;
   }>;
   orderValue: number;
+  shopId: string;
 }
 
 class ShippingCostService {
@@ -104,11 +97,13 @@ class ShippingCostService {
   async getAllShippingCosts(
     page: number = 0,
     size: number = 10,
+    shopId: string,
     sort?: string
   ): Promise<PaginatedResponse<ShippingCostDTO>> {
     const params = new URLSearchParams({
       page: page.toString(),
       size: size.toString(),
+      shopId,
     });
 
     if (sort) {
@@ -119,13 +114,15 @@ class ShippingCostService {
     return response.data;
   }
 
-  async getActiveShippingCosts(): Promise<ShippingCostDTO[]> {
-    const response = await apiClient.get(`${this.baseUrl}/active`);
+  async getActiveShippingCosts(shopId: string): Promise<ShippingCostDTO[]> {
+    const params = new URLSearchParams({ shopId });
+    const response = await apiClient.get(`${this.baseUrl}/active?${params}`);
     return response.data;
   }
 
-  async getShippingCostById(id: number): Promise<ShippingCostDTO> {
-    const response = await apiClient.get(`${this.baseUrl}/${id}`);
+  async getShippingCostById(id: number, shopId: string): Promise<ShippingCostDTO> {
+    const params = new URLSearchParams({ shopId });
+    const response = await apiClient.get(`${this.baseUrl}/${id}?${params}`);
     return response.data;
   }
 
@@ -138,25 +135,30 @@ class ShippingCostService {
 
   async updateShippingCost(
     id: number,
-    data: UpdateShippingCostDTO
+    data: UpdateShippingCostDTO,
+    shopId: string
   ): Promise<ShippingCostDTO> {
-    const response = await apiClient.put(`${this.baseUrl}/${id}`, data);
+    const params = new URLSearchParams({ shopId });
+    const response = await apiClient.put(`${this.baseUrl}/${id}?${params}`, data);
     return response.data;
   }
 
-  async deleteShippingCost(id: number): Promise<void> {
-    await apiClient.delete(`${this.baseUrl}/${id}`);
+  async deleteShippingCost(id: number, shopId: string): Promise<void> {
+    const params = new URLSearchParams({ shopId });
+    await apiClient.delete(`${this.baseUrl}/${id}?${params}`);
   }
 
   async searchShippingCosts(
     name: string,
     page: number = 0,
-    size: number = 10
+    size: number = 10,
+    shopId: string
   ): Promise<PaginatedResponse<ShippingCostDTO>> {
     const params = new URLSearchParams({
       name,
       page: page.toString(),
       size: size.toString(),
+      shopId,
     });
 
     const response = await apiClient.get(`${this.baseUrl}/search?${params}`);
@@ -168,6 +170,7 @@ class ShippingCostService {
   ): Promise<number> {
     const params = new URLSearchParams();
 
+    params.append("shopId", request.shopId);
     if (request.weight !== undefined) {
       params.append("weight", request.weight.toString());
     }
@@ -182,8 +185,9 @@ class ShippingCostService {
     return response.data;
   }
 
-  async toggleShippingCostStatus(id: number): Promise<ShippingCostDTO> {
-    const response = await apiClient.put(`${this.baseUrl}/${id}/toggle`);
+  async toggleShippingCostStatus(id: number, shopId: string): Promise<ShippingCostDTO> {
+    const params = new URLSearchParams({ shopId });
+    const response = await apiClient.put(`${this.baseUrl}/${id}/toggle?${params}`);
     return response.data;
   }
 
