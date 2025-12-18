@@ -57,9 +57,10 @@ type CreateDiscountFormData = z.infer<typeof createDiscountSchema>;
 
 interface CreateDiscountFormProps {
   onSubmit: (data: CreateDiscountDTO) => void;
+  shopId: string;
 }
 
-export function CreateDiscountForm({ onSubmit }: CreateDiscountFormProps) {
+export function CreateDiscountForm({ onSubmit, shopId }: CreateDiscountFormProps) {
   const [startDate, setStartDate] = useState<Date>();
   const [endDate, setEndDate] = useState<Date>();
   const [startTime, setStartTime] = useState<string>("09:00");
@@ -118,6 +119,7 @@ export function CreateDiscountForm({ onSubmit }: CreateDiscountFormProps) {
       isActive: data.isActive,
       usageLimit: data.usageLimit,
       discountType: data.discountType,
+      shopId: shopId,
     };
 
     console.log("Final submit data:", submitData);

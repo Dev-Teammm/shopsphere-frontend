@@ -1,8 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { shopService } from "@/lib/services/shop-service";
 import {
   Card,
   CardContent,
@@ -53,13 +55,21 @@ import {
   CreateDiscountDTO,
 } from "@/lib/services/discount-service";
 import { toast } from "@/hooks/use-toast";
+import { useToast } from "@/hooks/use-toast";
 import { CreateDiscountForm } from "./components/CreateDiscountForm";
 import { DiscountDetailsModal } from "./components/DiscountDetailsModal";
 import { UpdateDiscountForm } from "./components/UpdateDiscountForm";
 
 export default function DiscountsPage() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const { toast } = useToast();
+  const shopSlug = searchParams.get("shopSlug");
+  const shopIdRef = useRef<string | null>(null);
+  
   const [discounts, setDiscounts] = useState<DiscountDTO[]>([]);
   const [loading, setLoading] = useState(true);
+  const [shopLoading, setShopLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
   const [totalElements, setTotalElements] = useState(0);
@@ -83,10 +93,53 @@ export default function DiscountsPage() {
     null
   );
 
+  // Fetch shopId from shopSlug
+  useEffect(() => {
+    const fetchShopId = async () => {
+      if (!shopSlug) {
+        toast({
+          title: "Error",
+          description: "Shop slug is required",
+          variant: "destructive",
+        });
+        router.push("/dashboard");
+        return;
+      }
+
+      try {
+        setShopLoading(true);
+        const shop = await shopService.getShopBySlug(shopSlug);
+        shopIdRef.current = shop.shopId;
+        // Store in sessionStorage for safety
+        if (shop.shopId) {
+          sessionStorage.setItem("selectedShopId", shop.shopId);
+          sessionStorage.setItem("selectedShopSlug", shopSlug);
+        }
+      } catch (error: any) {
+        console.error("Error fetching shop:", error);
+        toast({
+          title: "Error",
+          description: "Failed to load shop information",
+          variant: "destructive",
+        });
+        router.push("/dashboard");
+      } finally {
+        setShopLoading(false);
+      }
+    };
+
+    fetchShopId();
+  }, [shopSlug, router]);
+
   const fetchDiscounts = async () => {
+    if (!shopIdRef.current) {
+      return; // Wait for shopId to be loaded
+    }
+
     try {
       setLoading(true);
       const response = await discountService.getAllDiscounts(
+        shopIdRef.current,
         currentPage,
         pageSize,
         sortBy,
@@ -123,8 +176,10 @@ export default function DiscountsPage() {
   };
 
   useEffect(() => {
-    fetchDiscounts();
-  }, [currentPage, pageSize, sortBy, sortDirection, activeOnly]);
+    if (shopIdRef.current && !shopLoading) {
+      fetchDiscounts();
+    }
+  }, [currentPage, pageSize, sortBy, sortDirection, activeOnly, shopLoading]);
 
   const handleCreateDiscount = async (discountData: CreateDiscountDTO) => {
     try {
@@ -160,10 +215,10 @@ export default function DiscountsPage() {
   };
 
   const handleDeleteDiscount = async () => {
-    if (!discountToDelete) return;
+    if (!discountToDelete || !shopIdRef.current) return;
 
     try {
-      await discountService.deleteDiscount(discountToDelete.discountId);
+      await discountService.deleteDiscount(discountToDelete.discountId, shopIdRef.current);
       toast({
         title: "Success",
         description: "Discount deleted successfully",
@@ -206,10 +261,10 @@ export default function DiscountsPage() {
   };
 
   const handleUpdateDiscount = async (data: any) => {
-    if (!discountToUpdate) return;
+    if (!discountToUpdate || !shopIdRef.current) return;
 
     try {
-      await discountService.updateDiscount(discountToUpdate.discountId, data);
+      await discountService.updateDiscount(discountToUpdate.discountId, shopIdRef.current, data);
       toast({
         title: "Success",
         description: "Discount updated successfully",
@@ -367,7 +422,7 @@ export default function DiscountsPage() {
         </div>
         <Dialog open={showCreateModal} onOpenChange={setShowCreateModal}>
           <DialogTrigger asChild>
-            <Button>
+            <Button disabled={!shopIdRef.current || shopLoading}>
               <Plus className="mr-2 h-4 w-4" />
               Create Discount
             </Button>
@@ -379,7 +434,12 @@ export default function DiscountsPage() {
                 Create a new discount for your products
               </DialogDescription>
             </DialogHeader>
-            <CreateDiscountForm onSubmit={handleCreateDiscount} />
+            {shopIdRef.current && (
+              <CreateDiscountForm 
+                onSubmit={handleCreateDiscount} 
+                shopId={shopIdRef.current}
+              />
+            )}
           </DialogContent>
         </Dialog>
       </div>
@@ -598,9 +658,19 @@ export default function DiscountsPage() {
           </div>
         </CardHeader>
         <CardContent>
-          {loading ? (
+          {shopLoading || loading ? (
             <div className="flex items-center justify-center py-8">
-              <div className="text-muted-foreground">Loading discounts...</div>
+              <div className="text-muted-foreground">
+                {shopLoading ? "Loading shop information..." : "Loading discounts..."}
+              </div>
+            </div>
+          ) : !shopIdRef.current ? (
+            <div className="flex flex-col items-center justify-center py-12 text-center">
+              <AlertCircle className="h-12 w-12 text-muted-foreground mb-4" />
+              <h3 className="text-lg font-semibold mb-2">Shop not found</h3>
+              <p className="text-muted-foreground mb-4">
+                Unable to load shop information. Please try again.
+              </p>
             </div>
           ) : filteredDiscounts.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-center">
@@ -748,11 +818,14 @@ export default function DiscountsPage() {
       </Card>
 
       {/* Discount Details Modal */}
-      <DiscountDetailsModal
-        discount={selectedDiscount}
-        open={showDetailsModal}
-        onOpenChange={setShowDetailsModal}
-      />
+      {shopIdRef.current && (
+        <DiscountDetailsModal
+          discount={selectedDiscount}
+          open={showDetailsModal}
+          onOpenChange={setShowDetailsModal}
+          shopId={shopIdRef.current}
+        />
+      )}
 
       <Dialog open={showDeleteModal} onOpenChange={setShowDeleteModal}>
         <DialogContent>

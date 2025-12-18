@@ -71,12 +71,14 @@ interface DiscountDetailsModalProps {
   discount: DiscountDTO | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  shopId: string;
 }
 
 export function DiscountDetailsModal({
   discount,
   open,
   onOpenChange,
+  shopId,
 }: DiscountDetailsModalProps) {
   const [products, setProducts] = useState<ProductInfo[]>([]);
   const [variants, setVariants] = useState<VariantInfo[]>([]);
@@ -85,18 +87,19 @@ export function DiscountDetailsModal({
   const [removing, setRemoving] = useState<string | null>(null);
 
   useEffect(() => {
-    if (discount && open) {
+    if (discount && open && shopId) {
       fetchProductsWithDiscount();
     }
-  }, [discount, open]);
+  }, [discount, open, shopId]);
 
   const fetchProductsWithDiscount = async () => {
-    if (!discount) return;
+    if (!discount || !shopId) return;
 
     try {
       setLoading(true);
       const response = await discountService.getProductsByDiscount(
-        discount.discountId
+        discount.discountId,
+        shopId
       );
 
       setProducts(response.products);

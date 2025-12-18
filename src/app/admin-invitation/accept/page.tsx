@@ -34,6 +34,8 @@ function AcceptInvitationContent() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [isExistingUser, setIsExistingUser] = useState(false);
+  const [userExists, setUserExists] = useState<boolean | null>(null);
+  const [checkingUser, setCheckingUser] = useState(false);
 
   // Form states
   const [password, setPassword] = useState("");
@@ -88,10 +90,23 @@ function AcceptInvitationContent() {
       setInvitation(invitationResult.data);
       setPhoneNumber(invitationResult.data.phoneNumber || "");
 
-      // Check if user already exists by trying to fetch user info
-      // We'll determine this by checking if the invitation was sent to an existing user
-      // For now, we'll show the new user form by default
-      setIsExistingUser(false);
+      // Check if user exists from validation response
+      if (validationResult.data.userExists !== undefined) {
+        setUserExists(validationResult.data.userExists);
+        // Only allow "existing user" toggle if user actually exists
+        if (!validationResult.data.userExists) {
+          setIsExistingUser(false);
+        }
+      } else {
+        // Fallback: check user existence separately
+        const userCheckResult = await adminInvitationService.checkUserExists(token);
+        if (userCheckResult.success && userCheckResult.data) {
+          setUserExists(userCheckResult.data.userExists);
+          if (!userCheckResult.data.userExists) {
+            setIsExistingUser(false);
+          }
+        }
+      }
     } catch (error) {
       console.error("Error validating invitation:", error);
       toast.error(
@@ -143,7 +158,14 @@ function AcceptInvitationContent() {
           setValidationErrors(result.errors);
           toast.error(result.message || "Validation failed. Please check the form.");
         } else {
-          toast.error(result.message || "Failed to accept invitation");
+          // Check if error is about user not existing
+          if (result.message?.includes("does not exist in the system")) {
+            toast.error(result.message);
+            setIsExistingUser(false);
+            setUserExists(false);
+          } else {
+            toast.error(result.message || "Failed to accept invitation");
+          }
         }
         return;
       }
@@ -318,15 +340,58 @@ function AcceptInvitationContent() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="flex items-center space-x-2">
-              <Switch
-                id="user-type"
-                checked={isExistingUser}
-                onCheckedChange={setIsExistingUser}
-              />
-              <Label htmlFor="user-type" className="text-sm">
-                I already have an account
-              </Label>
+            <div className="space-y-2">
+              <div className="flex items-center space-x-2">
+                <Switch
+                  id="user-type"
+                  checked={isExistingUser}
+                  onCheckedChange={async (checked) => {
+                    if (checked && userExists === false) {
+                      // User tried to enable but doesn't exist - check again
+                      setCheckingUser(true);
+                      try {
+                        const result = await adminInvitationService.checkUserExists(token!);
+                        if (result.success && result.data) {
+                          if (result.data.userExists) {
+                            setUserExists(true);
+                            setIsExistingUser(true);
+                          } else {
+                            toast.error("This email does not have an account in the system. Please create a new account.");
+                            setIsExistingUser(false);
+                          }
+                        } else {
+                          toast.error("Unable to verify account. Please try again.");
+                          setIsExistingUser(false);
+                        }
+                      } catch (error) {
+                        console.error("Error checking user existence:", error);
+                        toast.error("Failed to check account status. Please try again.");
+                        setIsExistingUser(false);
+                      } finally {
+                        setCheckingUser(false);
+                      }
+                    } else if (checked && userExists === true) {
+                      setIsExistingUser(true);
+                    } else if (!checked) {
+                      setIsExistingUser(false);
+                    }
+                  }}
+                  disabled={checkingUser || (userExists === false)}
+                />
+                <Label htmlFor="user-type" className="text-sm">
+                  I already have an account
+                </Label>
+              </div>
+              {userExists === false && (
+                <p className="text-xs text-red-500 ml-8">
+                  This email does not have an account. Please create a new account by leaving this option disabled.
+                </p>
+              )}
+              {checkingUser && (
+                <p className="text-xs text-muted-foreground ml-8">
+                  Checking account status...
+                </p>
+              )}
             </div>
 
             <div>

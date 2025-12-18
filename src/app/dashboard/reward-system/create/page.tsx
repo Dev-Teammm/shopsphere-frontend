@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect, useRef } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { shopService } from "@/lib/services/shop-service";
 import {
   Card,
   CardContent,
@@ -23,7 +24,11 @@ type TempRewardRange = Omit<RewardRangeDTO, "id"> & { tempId: string };
 
 export default function CreateRewardSystemPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { toast } = useToast();
+  const shopSlug = searchParams.get("shopSlug");
+  const shopIdRef = useRef<string | null>(null);
+  const [shopLoading, setShopLoading] = useState(true);
   const [loading, setLoading] = useState(false);
   const [config, setConfig] = useState<RewardSystemDTO>({
     pointValue: 0.01,
@@ -31,8 +36,6 @@ export default function CreateRewardSystemPage() {
     isSystemEnabled: true,
     isReviewPointsEnabled: false,
     reviewPointsAmount: 10,
-    isSignupPointsEnabled: false,
-    signupPointsAmount: 50,
     isPurchasePointsEnabled: false,
     isQuantityBasedEnabled: false,
     isAmountBasedEnabled: false,
@@ -43,6 +46,43 @@ export default function CreateRewardSystemPage() {
   });
 
   const [ranges, setRanges] = useState<TempRewardRange[]>([]);
+
+  // Fetch shopId from shopSlug
+  useEffect(() => {
+    const fetchShopId = async () => {
+      if (!shopSlug) {
+        toast({
+          title: "Error",
+          description: "Shop slug is required",
+          variant: "destructive",
+        });
+        router.push(`/dashboard/reward-system${shopSlug ? `?shopSlug=${shopSlug}` : ""}`);
+        return;
+      }
+
+      try {
+        setShopLoading(true);
+        const shop = await shopService.getShopBySlug(shopSlug);
+        shopIdRef.current = shop.shopId;
+        if (shop.shopId) {
+          sessionStorage.setItem("selectedShopId", shop.shopId);
+          sessionStorage.setItem("selectedShopSlug", shopSlug);
+        }
+      } catch (error: any) {
+        console.error("Error fetching shop:", error);
+        toast({
+          title: "Error",
+          description: "Failed to load shop information",
+          variant: "destructive",
+        });
+        router.push(`/dashboard/reward-system${shopSlug ? `?shopSlug=${shopSlug}` : ""}`);
+      } finally {
+        setShopLoading(false);
+      }
+    };
+
+    fetchShopId();
+  }, [shopSlug, router, toast]);
 
   const handleInputChange = (field: keyof RewardSystemDTO, value: any) => {
     setConfig((prev) => ({ ...prev, [field]: value }));
@@ -81,6 +121,15 @@ export default function CreateRewardSystemPage() {
   };
 
   const handleSubmit = async () => {
+    if (!shopIdRef.current) {
+      toast({
+        title: "Error",
+        description: "Shop information not loaded",
+        variant: "destructive",
+      });
+      return;
+    }
+
     try {
       setLoading(true);
 
@@ -90,7 +139,8 @@ export default function CreateRewardSystemPage() {
       };
 
       const savedSystem = await rewardSystemService.saveRewardSystem(
-        systemToSave
+        systemToSave,
+        shopIdRef.current
       );
 
       toast({
@@ -98,7 +148,7 @@ export default function CreateRewardSystemPage() {
         description: "Reward system created successfully",
       });
 
-      router.push("/dashboard/reward-system");
+      router.push(`/dashboard/reward-system${shopSlug ? `?shopSlug=${shopSlug}` : ""}`);
     } catch (error: any) {
       console.error("Failed to create reward system:", error);
       toast({
@@ -113,8 +163,35 @@ export default function CreateRewardSystemPage() {
   };
 
   const isFormValid = () => {
-    return config.pointValue > 0;
+    return config.pointValue > 0 && shopIdRef.current !== null;
   };
+
+  if (shopLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Loading shop information...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!shopIdRef.current) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <p className="text-muted-foreground">Shop not found</p>
+          <Button
+            onClick={() => router.push(`/dashboard/reward-system${shopSlug ? `?shopSlug=${shopSlug}` : ""}`)}
+            className="mt-4"
+          >
+            Back to Reward Systems
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -237,50 +314,6 @@ export default function CreateRewardSystemPage() {
                       )
                     }
                     placeholder="10"
-                  />
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Signup Points</CardTitle>
-              <CardDescription>
-                Configure points awarded for new user registrations
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label>Enable Signup Points</Label>
-                  <p className="text-sm text-muted-foreground">
-                    Award points when new users sign up
-                  </p>
-                </div>
-                <Switch
-                  checked={config.isSignupPointsEnabled}
-                  onCheckedChange={(checked) =>
-                    handleToggle("isSignupPointsEnabled", checked)
-                  }
-                />
-              </div>
-
-              {config.isSignupPointsEnabled && (
-                <div className="space-y-2">
-                  <Label htmlFor="signupPointsAmount">Points for Signup</Label>
-                  <Input
-                    id="signupPointsAmount"
-                    type="number"
-                    min="1"
-                    value={config.signupPointsAmount}
-                    onChange={(e) =>
-                      handleInputChange(
-                        "signupPointsAmount",
-                        parseInt(e.target.value) || 0
-                      )
-                    }
-                    placeholder="50"
                   />
                 </div>
               )}
@@ -573,7 +606,7 @@ export default function CreateRewardSystemPage() {
         </Button>
         <Button
           onClick={handleSubmit}
-          disabled={loading || !isFormValid()}
+          disabled={loading || !isFormValid() || !shopIdRef.current}
           className="min-w-[120px]"
         >
           {loading ? "Creating..." : "Create System"}

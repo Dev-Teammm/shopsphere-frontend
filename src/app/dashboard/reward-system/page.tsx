@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect, useRef } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { shopService } from "@/lib/services/shop-service";
 import {
   Card,
   CardContent,
@@ -27,8 +28,15 @@ import {
 } from "lucide-react";
 
 export default function RewardSystemPage() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const { toast } = useToast();
+  const shopSlug = searchParams.get("shopSlug");
+  const shopIdRef = useRef<string | null>(null);
+
   const [rewardSystems, setRewardSystems] = useState<RewardSystemDTO[]>([]);
   const [loading, setLoading] = useState(true);
+  const [shopLoading, setShopLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
   const [totalElements, setTotalElements] = useState(0);
@@ -37,17 +45,60 @@ export default function RewardSystemPage() {
   const [editingSystem, setEditingSystem] = useState<RewardSystemDTO | null>(
     null
   );
-  const { toast } = useToast();
-  const router = useRouter();
+
+  // Fetch shopId from shopSlug
+  useEffect(() => {
+    const fetchShopId = async () => {
+      if (!shopSlug) {
+        toast({
+          title: "Error",
+          description: "Shop slug is required",
+          variant: "destructive",
+        });
+        router.push("/dashboard");
+        return;
+      }
+
+      try {
+        setShopLoading(true);
+        const shop = await shopService.getShopBySlug(shopSlug);
+        shopIdRef.current = shop.shopId;
+        // Store in sessionStorage for safety
+        if (shop.shopId) {
+          sessionStorage.setItem("selectedShopId", shop.shopId);
+          sessionStorage.setItem("selectedShopSlug", shopSlug);
+        }
+      } catch (error: any) {
+        console.error("Error fetching shop:", error);
+        toast({
+          title: "Error",
+          description: "Failed to load shop information",
+          variant: "destructive",
+        });
+        router.push("/dashboard");
+      } finally {
+        setShopLoading(false);
+      }
+    };
+
+    fetchShopId();
+  }, [shopSlug, router, toast]);
 
   useEffect(() => {
-    loadRewardSystems();
-  }, [currentPage]);
+    if (shopIdRef.current && !shopLoading) {
+      loadRewardSystems();
+    }
+  }, [currentPage, shopLoading]);
 
   const loadRewardSystems = async () => {
+    if (!shopIdRef.current) {
+      return; // Wait for shopId to be loaded
+    }
+
     try {
       setLoading(true);
       const data = await rewardSystemService.getAllRewardSystems(
+        shopIdRef.current,
         currentPage,
         pageSize,
         "id",
@@ -80,7 +131,11 @@ export default function RewardSystemPage() {
   };
 
   const handleCreateNew = () => {
-    router.push("/dashboard/reward-system/create");
+    if (shopSlug) {
+      router.push(`/dashboard/reward-system/create?shopSlug=${shopSlug}`);
+    } else {
+      router.push("/dashboard/reward-system/create");
+    }
   };
 
   const handleEdit = (system: RewardSystemDTO) => {
@@ -106,9 +161,12 @@ export default function RewardSystemPage() {
   };
 
   const handleActivateSystem = async (systemId: number) => {
+    if (!shopIdRef.current) return;
+
     try {
       const updatedSystem = await rewardSystemService.activateRewardSystem(
-        systemId
+        systemId,
+        shopIdRef.current
       );
       setRewardSystems((prev) =>
         prev.map((sys) => ({
@@ -134,9 +192,12 @@ export default function RewardSystemPage() {
     systemId: number,
     enabled: boolean
   ) => {
+    if (!shopIdRef.current) return;
+
     try {
       const updatedSystem = await rewardSystemService.toggleSystemEnabled(
         systemId,
+        shopIdRef.current,
         enabled
       );
       setRewardSystems((prev) =>
@@ -156,12 +217,24 @@ export default function RewardSystemPage() {
     }
   };
 
-  if (loading) {
+  if (shopLoading || loading) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Loading reward systems...</p>
+          <p className="text-muted-foreground">
+            {shopLoading ? "Loading shop information..." : "Loading reward systems..."}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!shopIdRef.current) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <p className="text-muted-foreground">Shop not found</p>
         </div>
       </div>
     );
@@ -287,13 +360,9 @@ export default function RewardSystemPage() {
                     </div>
                   </div>
                   <CardDescription>
-                    Point Value: ${system.pointValue} | Review Points:{" "}
+                    Point Value: ${system.pointValue}                     | Review Points:{" "}
                     {system.isReviewPointsEnabled
                       ? `${system.reviewPointsAmount} pts`
-                      : "Disabled"}{" "}
-                    | Signup Points:{" "}
-                    {system.isSignupPointsEnabled
-                      ? `${system.signupPointsAmount} pts`
                       : "Disabled"}
                   </CardDescription>
                 </CardHeader>
@@ -529,7 +598,7 @@ export default function RewardSystemPage() {
                           variant="outline"
                           onClick={() =>
                             router.push(
-                              `/dashboard/reward-system/edit/${system.id}`
+                              `/dashboard/reward-system/edit/${system.id}${shopSlug ? `?shopSlug=${shopSlug}` : ""}`
                             )
                           }
                         >
@@ -539,7 +608,7 @@ export default function RewardSystemPage() {
                         <Button
                           onClick={() =>
                             router.push(
-                              `/dashboard/reward-system/edit/${system.id}`
+                              `/dashboard/reward-system/edit/${system.id}${shopSlug ? `?shopSlug=${shopSlug}` : ""}`
                             )
                           }
                         >

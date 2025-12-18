@@ -8,12 +8,15 @@ import {
 } from "@/lib/types/reward-system";
 
 class RewardSystemService {
-  async getActiveRewardSystem(): Promise<RewardSystemDTO> {
-    const response = await apiClient.get(API_ENDPOINTS.REWARDS.SYSTEM);
+  async getActiveRewardSystem(shopId: string): Promise<RewardSystemDTO> {
+    const response = await apiClient.get(
+      `${API_ENDPOINTS.REWARDS.SYSTEM}?shopId=${shopId}`
+    );
     return response.data;
   }
 
   async getAllRewardSystems(
+    shopId: string,
     page: number = 0,
     size: number = 10,
     sortBy: string = "id",
@@ -29,6 +32,7 @@ class RewardSystemService {
     empty: boolean;
   }> {
     const params = new URLSearchParams({
+      shopId,
       page: page.toString(),
       size: size.toString(),
       sortBy,
@@ -41,48 +45,54 @@ class RewardSystemService {
     return response.data;
   }
 
-  async getRewardSystemById(id: number): Promise<RewardSystemDTO> {
+  async getRewardSystemById(id: number, shopId: string): Promise<RewardSystemDTO> {
     const response = await apiClient.get(
-      `${API_ENDPOINTS.REWARDS.SYSTEM_BY_ID(id)}`
+      `${API_ENDPOINTS.REWARDS.SYSTEM_BY_ID(id)}?shopId=${shopId}`
     );
     return response.data;
   }
 
   async saveRewardSystem(
-    rewardSystem: RewardSystemDTO
+    rewardSystem: RewardSystemDTO,
+    shopId: string
   ): Promise<RewardSystemDTO> {
     const response = await apiClient.post(
-      API_ENDPOINTS.REWARDS.SYSTEM,
+      `${API_ENDPOINTS.REWARDS.SYSTEM}?shopId=${shopId}`,
       rewardSystem
     );
     return response.data;
   }
 
-  async activateRewardSystem(id: number): Promise<RewardSystemDTO> {
+  async activateRewardSystem(id: number, shopId: string): Promise<RewardSystemDTO> {
     const response = await apiClient.put(
-      `${API_ENDPOINTS.REWARDS.SYSTEM_BY_ID(id)}/activate`
+      `${API_ENDPOINTS.REWARDS.SYSTEM_BY_ID(id)}/activate?shopId=${shopId}`
     );
     return response.data;
   }
 
   async toggleSystemEnabled(
     id: number,
+    shopId: string,
     enabled: boolean
   ): Promise<RewardSystemDTO> {
     const response = await apiClient.put(
       `${API_ENDPOINTS.REWARDS.SYSTEM_BY_ID(
         id
-      )}/toggle-system?enabled=${enabled}`
+      )}/toggle-system?shopId=${shopId}&enabled=${enabled}`
     );
     return response.data;
   }
 
   async toggleReviewPoints(
     id: number,
+    shopId: string,
     enabled: boolean,
     pointsAmount?: number
   ): Promise<RewardSystemDTO> {
-    const params = new URLSearchParams({ enabled: enabled.toString() });
+    const params = new URLSearchParams({ 
+      shopId,
+      enabled: enabled.toString() 
+    });
     if (pointsAmount !== undefined) {
       params.append("pointsAmount", pointsAmount.toString());
     }
@@ -93,64 +103,55 @@ class RewardSystemService {
     return response.data;
   }
 
-  async toggleSignupPoints(
-    id: number,
-    enabled: boolean,
-    pointsAmount?: number
-  ): Promise<RewardSystemDTO> {
-    const params = new URLSearchParams({ enabled: enabled.toString() });
-    if (pointsAmount !== undefined) {
-      params.append("pointsAmount", pointsAmount.toString());
-    }
-
-    const response = await apiClient.put(
-      `${API_ENDPOINTS.REWARDS.SYSTEM_BY_ID(id)}/toggle-signup-points?${params}`
-    );
-    return response.data;
-  }
-
   async togglePurchasePoints(
     id: number,
+    shopId: string,
     enabled: boolean
   ): Promise<RewardSystemDTO> {
     const response = await apiClient.put(
       `${API_ENDPOINTS.REWARDS.SYSTEM_BY_ID(
         id
-      )}/toggle-purchase-points?enabled=${enabled}`
+      )}/toggle-purchase-points?shopId=${shopId}&enabled=${enabled}`
     );
     return response.data;
   }
 
   async toggleQuantityBased(
     id: number,
+    shopId: string,
     enabled: boolean
   ): Promise<RewardSystemDTO> {
     const response = await apiClient.put(
       `${API_ENDPOINTS.REWARDS.SYSTEM_BY_ID(
         id
-      )}/toggle-quantity-based?enabled=${enabled}`
+      )}/toggle-quantity-based?shopId=${shopId}&enabled=${enabled}`
     );
     return response.data;
   }
 
   async toggleAmountBased(
     id: number,
+    shopId: string,
     enabled: boolean
   ): Promise<RewardSystemDTO> {
     const response = await apiClient.put(
       `${API_ENDPOINTS.REWARDS.SYSTEM_BY_ID(
         id
-      )}/toggle-amount-based?enabled=${enabled}`
+      )}/toggle-amount-based?shopId=${shopId}&enabled=${enabled}`
     );
     return response.data;
   }
 
   async togglePercentageBased(
     id: number,
+    shopId: string,
     enabled: boolean,
     percentageRate?: number
   ): Promise<RewardSystemDTO> {
-    const params = new URLSearchParams({ enabled: enabled.toString() });
+    const params = new URLSearchParams({ 
+      shopId,
+      enabled: enabled.toString() 
+    });
     if (percentageRate !== undefined) {
       params.append("percentageRate", percentageRate.toString());
     }

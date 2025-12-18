@@ -7,6 +7,7 @@ export interface CreateAdminInvitationDTO {
   firstName: string;
   lastName: string;
   assignedRole: string;
+  shopId?: string;
   invitationMessage?: string;
   department?: string;
   position?: string;
@@ -44,6 +45,8 @@ export interface AdminInvitationDTO {
   position: string | null;
   phoneNumber: string | null;
   notes: string | null;
+  shopId?: string | null;
+  shopName?: string | null;
   canBeAccepted: boolean;
   canBeCancelled: boolean;
   expired: boolean;
@@ -70,6 +73,7 @@ export interface InvitationValidationResponse {
   isValid: boolean;
   isExpired: boolean;
   canBeAccepted: boolean;
+  userExists?: boolean;
 }
 
 export interface InvitationStatistics {
@@ -105,12 +109,17 @@ export interface ApiResponse<T> {
 class AdminInvitationService {
   // Create a new admin invitation
   async createInvitation(
-    invitationData: CreateAdminInvitationDTO
+    invitationData: CreateAdminInvitationDTO,
+    shopId?: string
   ): Promise<ApiResponse<AdminInvitationDTO>> {
     try {
+      const payload: CreateAdminInvitationDTO = {
+        ...invitationData,
+        shopId: invitationData.shopId ?? shopId,
+      };
       const response = await apiClient.post(
         `${API_ENDPOINTS.INVITATIONS.BASE}`,
-        invitationData
+        payload
       );
       return response.data;
     } catch (error: any) {
@@ -231,7 +240,8 @@ class AdminInvitationService {
     page: number = 0,
     size: number = 10,
     sortBy: string = "createdAt",
-    sortDirection: string = "desc"
+    sortDirection: string = "desc",
+    shopId?: string
   ): Promise<ApiResponse<AdminInvitationDTO[]>> {
     try {
       const response = await apiClient.get(
@@ -242,6 +252,7 @@ class AdminInvitationService {
             size,
             sortBy,
             sortDirection,
+            ...(shopId ? { shopId } : {}),
           },
         }
       );
@@ -259,14 +270,15 @@ class AdminInvitationService {
   async searchInvitations(
     searchDTO: AdminInvitationSearchDTO,
     page: number = 0,
-    size: number = 10
+    size: number = 10,
+    shopId?: string
   ): Promise<ApiResponse<AdminInvitationDTO[]>> {
     try {
       const response = await apiClient.post(
         `${API_ENDPOINTS.INVITATIONS.BASE}/search`,
         searchDTO,
         {
-          params: { page, size },
+          params: { page, size, ...(shopId ? { shopId } : {}) },
         }
       );
       return response.data;
@@ -284,13 +296,14 @@ class AdminInvitationService {
   async getInvitationsByStatus(
     status: string,
     page: number = 0,
-    size: number = 10
+    size: number = 10,
+    shopId?: string
   ): Promise<ApiResponse<AdminInvitationDTO[]>> {
     try {
       const response = await apiClient.get(
         `${API_ENDPOINTS.INVITATIONS.BASE}/status/${status}`,
         {
-          params: { page, size },
+          params: { page, size, ...(shopId ? { shopId } : {}) },
         }
       );
       return response.data;
@@ -363,11 +376,34 @@ class AdminInvitationService {
     }
   }
 
-  // Get invitation statistics
-  async getInvitationStatistics(): Promise<ApiResponse<InvitationStatistics>> {
+  // Check if user exists for invitation (public endpoint)
+  async checkUserExists(
+    invitationToken: string
+  ): Promise<ApiResponse<{ userExists: boolean }>> {
     try {
       const response = await apiClient.get(
-        `${API_ENDPOINTS.INVITATIONS.BASE}/statistics`
+        `${API_ENDPOINTS.INVITATIONS.BASE}/check-user-exists/${invitationToken}`
+      );
+      return response.data;
+    } catch (error: any) {
+      return {
+        success: false,
+        message:
+          error.response?.data?.message || "Failed to check user existence",
+        error: error.response?.data?.message || "Network error",
+        data: { userExists: false },
+      };
+    }
+  }
+
+  // Get invitation statistics
+  async getInvitationStatistics(
+    shopId?: string
+  ): Promise<ApiResponse<InvitationStatistics>> {
+    try {
+      const response = await apiClient.get(
+        `${API_ENDPOINTS.INVITATIONS.BASE}/statistics`,
+        { params: { ...(shopId ? { shopId } : {}) } }
       );
       return response.data;
     } catch (error: any) {
@@ -382,10 +418,12 @@ class AdminInvitationService {
   }
 
   // Mark expired invitations
-  async markExpiredInvitations(): Promise<ApiResponse<boolean>> {
+  async markExpiredInvitations(shopId?: string): Promise<ApiResponse<boolean>> {
     try {
       const response = await apiClient.post(
-        `${API_ENDPOINTS.INVITATIONS.BASE}/expired/mark`
+        `${API_ENDPOINTS.INVITATIONS.BASE}/expired/mark`,
+        undefined,
+        { params: { ...(shopId ? { shopId } : {}) } }
       );
       return response.data;
     } catch (error: any) {
@@ -399,10 +437,13 @@ class AdminInvitationService {
   }
 
   // Delete expired invitations
-  async deleteExpiredInvitations(): Promise<ApiResponse<boolean>> {
+  async deleteExpiredInvitations(
+    shopId?: string
+  ): Promise<ApiResponse<boolean>> {
     try {
       const response = await apiClient.delete(
-        `${API_ENDPOINTS.INVITATIONS.BASE}/expired`
+        `${API_ENDPOINTS.INVITATIONS.BASE}/expired`,
+        { params: { ...(shopId ? { shopId } : {}) } }
       );
       return response.data;
     } catch (error: any) {
@@ -411,6 +452,25 @@ class AdminInvitationService {
         message:
           error.response?.data?.message ||
           "Failed to delete expired invitations",
+        error: error.response?.data?.message || "Network error",
+      };
+    }
+  }
+  // Release a shop member back to CUSTOMER (vendor-only)
+  async releaseShopMember(
+    shopId: string,
+    userId: string
+  ): Promise<ApiResponse<boolean>> {
+    try {
+      const response = await apiClient.delete(
+        `${API_ENDPOINTS.INVITATIONS.BASE}/shops/${shopId}/members/${userId}/release`
+      );
+      return response.data;
+    } catch (error: any) {
+      return {
+        success: false,
+        message:
+          error.response?.data?.message || "Failed to release shop member",
         error: error.response?.data?.message || "Network error",
       };
     }

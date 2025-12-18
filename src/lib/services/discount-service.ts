@@ -17,6 +17,8 @@ export interface DiscountDTO {
   updatedAt: string;
   isValid: boolean;
   canBeUsed: boolean;
+  shopId?: string;
+  shopName?: string;
 }
 
 export interface CreateDiscountDTO {
@@ -29,6 +31,7 @@ export interface CreateDiscountDTO {
   isActive?: boolean;
   usageLimit?: number;
   discountType?: string;
+  shopId: string;
 }
 
 export interface UpdateDiscountDTO {
@@ -59,6 +62,7 @@ class DiscountService {
    * Get all discounts with pagination
    */
   async getAllDiscounts(
+    shopId: string,
     page: number = 0,
     size: number = 10,
     sortBy: string = "createdAt",
@@ -67,7 +71,7 @@ class DiscountService {
   ): Promise<DiscountPaginationResponse> {
     try {
       const response = await apiClient.get(`/discounts`, {
-        params: { page, size, sortBy, sortDirection, activeOnly },
+        params: { shopId, page, size, sortBy, sortDirection, activeOnly },
       });
       return response.data;
     } catch (error) {
@@ -78,9 +82,11 @@ class DiscountService {
   /**
    * Get discount by ID
    */
-  async getDiscountById(discountId: string): Promise<DiscountDTO> {
+  async getDiscountById(discountId: string, shopId: string): Promise<DiscountDTO> {
     try {
-      const response = await apiClient.get(`/discounts/${discountId}`);
+      const response = await apiClient.get(`/discounts/${discountId}`, {
+        params: { shopId },
+      });
       return response.data;
     } catch (error) {
       throw handleApiError(error);
@@ -90,10 +96,13 @@ class DiscountService {
   /**
    * Get discount by code
    */
-  async getDiscountByCode(discountCode: string): Promise<DiscountDTO> {
+  async getDiscountByCode(discountCode: string, shopId: string): Promise<DiscountDTO> {
     try {
       const response = await apiClient.get(
-        `/discounts/code/${discountCode}`
+        `/discounts/code/${discountCode}`,
+        {
+          params: { shopId },
+        }
       );
       return response.data;
     } catch (error) {
@@ -104,7 +113,7 @@ class DiscountService {
   /**
    * Get products and variants by discount ID
    */
-  async getProductsByDiscount(discountId: string): Promise<{
+  async getProductsByDiscount(discountId: string, shopId: string): Promise<{
     products: any[];
     variants: any[];
     totalProducts: number;
@@ -112,7 +121,10 @@ class DiscountService {
   }> {
     try {
       const response = await apiClient.get(
-        `/discounts/${discountId}/products`
+        `/discounts/${discountId}/products`,
+        {
+          params: { shopId },
+        }
       );
       return response.data;
     } catch (error) {
@@ -137,11 +149,12 @@ class DiscountService {
    */
   async updateDiscount(
     discountId: string,
+    shopId: string,
     discountData: UpdateDiscountDTO
   ): Promise<DiscountDTO> {
     try {
       const response = await apiClient.put(
-        `/discounts/${discountId}`,
+        `/discounts/${discountId}?shopId=${shopId}`,
         discountData
       );
       return response.data;
@@ -154,10 +167,13 @@ class DiscountService {
    * Delete a discount
    */
   async deleteDiscount(
-    discountId: string
+    discountId: string,
+    shopId: string
   ): Promise<{ message: string; discountId: string }> {
     try {
-      const response = await apiClient.delete(`/discounts/${discountId}`);
+      const response = await apiClient.delete(
+        `/discounts/${discountId}?shopId=${shopId}`
+      );
       return response.data;
     } catch (error) {
       throw handleApiError(error);
@@ -168,10 +184,13 @@ class DiscountService {
    * Check if discount is valid
    */
   async isDiscountValid(
-    discountId: string
+    discountId: string,
+    shopId: string
   ): Promise<{ discountId: string; isValid: boolean }> {
     try {
-      const response = await apiClient.get(`/discounts/${discountId}/valid`);
+      const response = await apiClient.get(`/discounts/${discountId}/valid`, {
+        params: { shopId },
+      });
       return response.data;
     } catch (error) {
       throw handleApiError(error);
@@ -182,11 +201,15 @@ class DiscountService {
    * Check if discount code is valid
    */
   async isDiscountCodeValid(
-    discountCode: string
+    discountCode: string,
+    shopId: string
   ): Promise<{ discountCode: string; isValid: boolean }> {
     try {
       const response = await apiClient.get(
-        `/discounts/code/${discountCode}/valid`
+        `/discounts/code/${discountCode}/valid`,
+        {
+          params: { shopId },
+        }
       );
       return response.data;
     } catch (error) {
