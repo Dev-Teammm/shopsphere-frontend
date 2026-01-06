@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useAppSelector } from "@/lib/redux/hooks";
+import type { RootState } from "@/lib/redux/store";
 import { dashboardService } from "@/lib/services/dashboard-service";
 import { moneyFlowService } from "@/lib/services/money-flow-service";
 import { UserRole } from "@/lib/constants";
@@ -115,7 +116,7 @@ function MetricCard({
 type QuickFilter = "24h" | "7d" | "30d" | "90d" | "1y" | "custom";
 
 export default function AnalyticsPage() {
-  const { user } = useAppSelector((state) => state.auth);
+  const { user } = useAppSelector((state: RootState) => state.auth);
   const isAdmin = user?.role === UserRole.ADMIN;
 
   // Date range state

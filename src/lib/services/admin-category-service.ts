@@ -16,12 +16,15 @@ class AdminCategoryService {
     page: number = 0,
     size: number = 10,
     sortBy: string = "name",
-    sortDir: string = "asc"
+    sortDir: string = "asc",
+    shopId?: string
   ): Promise<CategoryPageResponse> {
     try {
-      const response = await apiClient.get(`/categories`, {
-        params: { page, size, sortBy, sortDir },
-      });
+      const params: any = { page, size, sortBy, sortDir };
+      if (shopId) {
+        params.shopId = shopId;
+      }
+      const response = await apiClient.get(`/categories`, { params });
       return response.data;
     } catch (error) {
       throw handleApiError(error);
@@ -87,9 +90,12 @@ class AdminCategoryService {
     categoryData: CategoryCreateRequest
   ): Promise<CategoryResponse> {
     try {
+      console.log("[AdminCategoryService] Creating category with data:", JSON.stringify(categoryData, null, 2));
+      console.log("[AdminCategoryService] shopId in payload:", categoryData.shopId);
       const response = await apiClient.post(`/categories`, categoryData);
       return response.data;
     } catch (error) {
+      console.error("[AdminCategoryService] Error creating category:", error);
       throw handleApiError(error);
     }
   }

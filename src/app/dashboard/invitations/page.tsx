@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -45,8 +46,14 @@ import adminInvitationService, {
   AdminInvitationDTO,
   CreateAdminInvitationDTO,
 } from "@/lib/services/admin-invitation-service";
+import { shopService } from "@/lib/services/shop-service";
 
 export default function InvitationsPage() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const shopSlug = useMemo(() => searchParams.get("shopSlug") || "", [searchParams]);
+
+  const [shopId, setShopId] = useState<string | null>(null);
   const [invitations, setInvitations] = useState<AdminInvitationDTO[]>([]);
   const [loading, setLoading] = useState(true);
   const [isInviteDialogOpen, setIsInviteDialogOpen] = useState(false);
@@ -63,11 +70,57 @@ export default function InvitationsPage() {
   const [inviteNotes, setInviteNotes] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Resolve shopId from shopSlug
+  useEffect(() => {
+    let cancelled = false;
+
+    async function resolveShopId() {
+      if (!shopSlug) {
+        setShopId(null);
+        setLoading(false);
+        toast.error("Missing shopSlug in URL");
+        return;
+      }
+
+      try {
+        const shop = await shopService.getShopBySlug(shopSlug);
+        if (!cancelled) {
+          setShopId(shop.shopId);
+          // Helpful for other modules + api-client safety nets
+          sessionStorage.setItem("selectedShopId", shop.shopId);
+          sessionStorage.setItem("selectedShopSlug", shopSlug);
+        }
+      } catch (e) {
+        if (!cancelled) {
+          setShopId(null);
+          toast.error("Shop not found");
+          router.replace("/dashboard");
+        }
+      }
+    }
+
+    resolveShopId();
+    return () => {
+      cancelled = true;
+    };
+  }, [shopSlug, router]);
+
   // Load invitations
   const loadInvitations = async () => {
     try {
       setLoading(true);
-      const response = await adminInvitationService.getAllInvitations();
+      if (!shopId) {
+        setInvitations([]);
+        return;
+      }
+
+      const response = await adminInvitationService.getAllInvitations(
+        0,
+        50,
+        "createdAt",
+        "desc",
+        shopId
+      );
 
       if (response.success && response.data) {
         // Backend returns invitations directly in data array, not in data.content
@@ -107,11 +160,16 @@ export default function InvitationsPage() {
 
     try {
       setIsSubmitting(true);
+      if (!shopId) {
+        toast.error("Shop is not loaded yet. Please wait.");
+        return;
+      }
       const invitationData: CreateAdminInvitationDTO = {
         email: inviteEmail,
         firstName: inviteFirstName,
         lastName: inviteLastName,
         assignedRole: inviteRole,
+        shopId,
         invitationMessage: inviteMessage || undefined,
         department: inviteDepartment || undefined,
         position: invitePosition || undefined,
@@ -120,7 +178,8 @@ export default function InvitationsPage() {
       };
 
       const response = await adminInvitationService.createInvitation(
-        invitationData
+        invitationData,
+        shopId
       );
 
       if (response.success) {
@@ -142,7 +201,7 @@ export default function InvitationsPage() {
   // Initial load
   useEffect(() => {
     loadInvitations();
-  }, []);
+  }, [shopId]);
 
   // Get status badge
   const getStatusBadge = (status: string) => {
@@ -323,7 +382,7 @@ export default function InvitationsPage() {
                       <SelectValue placeholder="Select role" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="ADMIN">Admin</SelectItem>
+                      <SelectItem value="VENDOR">Vendor</SelectItem>
                       <SelectItem value="EMPLOYEE">Employee</SelectItem>
                       <SelectItem value="DELIVERY_AGENT">Delivery Agent</SelectItem>
                     </SelectContent>

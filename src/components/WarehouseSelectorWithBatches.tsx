@@ -6,6 +6,8 @@ import {
   warehouseService,
   WarehouseDTO,
 } from "@/lib/services/warehouse-service";
+import { shopService } from "@/lib/services/shop-service";
+import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -91,6 +93,9 @@ export function WarehouseSelectorWithBatches({
   title = "Warehouse Stock Assignment with Batches",
   description = "Assign stock quantities with batch details to warehouses for this product",
 }: WarehouseSelectorWithBatchesProps) {
+  const searchParams = useSearchParams();
+  const shopSlug = searchParams.get("shopSlug");
+
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(0);
@@ -98,6 +103,18 @@ export function WarehouseSelectorWithBatches({
   const [selectedWarehouse, setSelectedWarehouse] =
     useState<WarehouseDTO | null>(null);
   const [lowStockThreshold, setLowStockThreshold] = useState<number>(5);
+
+  const {
+    data: shopData,
+    isLoading: isLoadingShop,
+    isError: isErrorShop,
+  } = useQuery({
+    queryKey: ["shop", shopSlug],
+    queryFn: () => shopService.getShopBySlug(shopSlug!),
+    enabled: !!shopSlug && isDialogOpen, // only fetch when dialog opens
+  });
+
+  const shopId = shopData?.shopId;
 
   // Batch form state
   const [batches, setBatches] = useState<
@@ -128,9 +145,19 @@ export function WarehouseSelectorWithBatches({
     isLoading,
     error,
   } = useQuery({
-    queryKey: ["warehouses", currentPage, pageSize, searchTerm],
-    queryFn: () => warehouseService.getWarehouses(currentPage, pageSize),
-    enabled: isDialogOpen,
+    queryKey: ["warehouses", shopId, currentPage, pageSize, searchTerm],
+    queryFn: () => {
+      if (searchTerm.trim()) {
+        return warehouseService.searchWarehouses(
+          searchTerm.trim(),
+          currentPage,
+          pageSize,
+          shopId
+        );
+      }
+      return warehouseService.getWarehouses(currentPage, pageSize, shopId);
+    },
+    enabled: isDialogOpen && !!shopSlug && !isLoadingShop && !!shopId && !isErrorShop,
   });
 
   const handleAddBatch = () => {

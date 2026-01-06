@@ -2,8 +2,10 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { useAppSelector } from "@/lib/redux/hooks";
+import type { RootState } from "@/lib/redux/store";
 import { dashboardService } from "@/lib/services/dashboard-service";
 import { UserRole } from "@/lib/constants";
+import { useSearchParams } from "next/navigation";
 import {
   RevenueChart,
   OrderStatusChart,
@@ -62,13 +64,16 @@ function StatCard({
 }
 
 export default function DashboardPage() {
-  const { user } = useAppSelector((state) => state.auth);
+  const { user } = useAppSelector((state: RootState) => state.auth);
   const isAdmin = user?.role === UserRole.ADMIN;
+  const searchParams = useSearchParams();
+  const shopSlug = searchParams.get("shopSlug");
 
   // Fetch dashboard data using TanStack Query
   const { data, isLoading, error } = useQuery({
-    queryKey: ["dashboard"],
-    queryFn: dashboardService.getDashboardData,
+    queryKey: ["dashboard", shopSlug],
+    queryFn: () => dashboardService.getDashboardData(shopSlug || undefined),
+    enabled: !!user, // Only fetch when user is available
   });
 
   if (isLoading) {
@@ -107,11 +112,11 @@ export default function DashboardPage() {
         <div>
           <h2 className="text-3xl font-bold tracking-tight">Dashboard</h2>
           <p className="text-muted-foreground">
-            Welcome back, {user?.username}! Here's a quick overview.
+            Welcome back, {user?.firstName} {user?.lastName}! Here's a quick overview.
           </p>
         </div>
 
-        <Link href="/dashboard/analytics">
+        <Link href={shopSlug ? `/dashboard/analytics?shopSlug=${encodeURIComponent(shopSlug)}` : "/dashboard/analytics"}>
           <Button variant="outline" className="gap-2">
             <span>View Detailed Analytics</span>
             <ArrowUpRight className="h-4 w-4" />
@@ -179,7 +184,7 @@ export default function DashboardPage() {
         <p>
           For more detailed metrics and reports, visit the{" "}
           <Link
-            href="/dashboard/analytics"
+            href={shopSlug ? `/dashboard/analytics?shopSlug=${encodeURIComponent(shopSlug)}` : "/dashboard/analytics"}
             className="text-primary hover:underline"
           >
             Analytics

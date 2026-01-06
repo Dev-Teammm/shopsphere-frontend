@@ -63,11 +63,13 @@ const createShippingCostSchema = z.object({
 type CreateShippingCostFormData = z.infer<typeof createShippingCostSchema>;
 
 interface CreateShippingCostFormProps {
+  shopId: string;
   onSuccess: () => void;
   onCancel: () => void;
 }
 
 export function CreateShippingCostForm({
+  shopId,
   onSuccess,
   onCancel,
 }: CreateShippingCostFormProps) {
@@ -121,6 +123,7 @@ export function CreateShippingCostForm({
         internationalFee: data.internationalFee || undefined,
         freeShippingThreshold: data.freeShippingThreshold || undefined,
         isActive: data.isActive,
+        shopId,
       };
 
       await createMutation.mutateAsync(submitData);

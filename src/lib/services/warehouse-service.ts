@@ -16,6 +16,8 @@ export interface WarehouseDTO {
   longitude?: number;
   isActive: boolean;
   productCount: number;
+  shopId?: string;
+  shopName?: string;
   createdAt: string;
   updatedAt: string;
   images: WarehouseImageDTO[];
@@ -46,6 +48,7 @@ export interface CreateWarehouseDTO {
   latitude?: number;
   longitude?: number;
   isActive?: boolean;
+  shopId?: string;
 }
 
 export interface UpdateWarehouseDTO {
@@ -118,11 +121,17 @@ class WarehouseService {
 
   async getWarehouses(
     page: number = 0,
-    size: number = 10
+    size: number = 10,
+    shopId?: string
   ): Promise<PaginatedResponse<WarehouseDTO>> {
-    const response = await apiClient.get(
-      `${this.baseUrl}?page=${page}&size=${size}`
-    );
+    const params = new URLSearchParams({
+      page: page.toString(),
+      size: size.toString(),
+    });
+    if (shopId) {
+      params.append("shopId", shopId);
+    }
+    const response = await apiClient.get(`${this.baseUrl}?${params.toString()}`);
     return response.data;
   }
 
@@ -247,31 +256,47 @@ class WarehouseService {
   async searchWarehouses(
     query: string,
     page: number = 0,
-    size: number = 10
+    size: number = 10,
+    shopId?: string
   ): Promise<PaginatedResponse<WarehouseDTO>> {
-    const response = await apiClient.get(
-      `${this.baseUrl}/search?query=${encodeURIComponent(
-        query
-      )}&page=${page}&size=${size}`
-    );
+    const params = new URLSearchParams({
+      query,
+      page: page.toString(),
+      size: size.toString(),
+    });
+    if (shopId) {
+      params.append("shopId", shopId);
+    }
+    const response = await apiClient.get(`${this.baseUrl}/search?${params.toString()}`);
     return response.data;
   }
 
-  async getWarehousesByLocation(location: string): Promise<WarehouseDTO[]> {
-    const response = await apiClient.get(
-      `${this.baseUrl}/location?location=${encodeURIComponent(location)}`
-    );
+  async getWarehousesByLocation(location: string, shopId?: string): Promise<WarehouseDTO[]> {
+    const params = new URLSearchParams({
+      location: location,
+    });
+    if (shopId) {
+      params.append("shopId", shopId);
+    }
+    const response = await apiClient.get(`${this.baseUrl}/location?${params.toString()}`);
     return response.data.data;
   }
 
   async getWarehousesNearLocation(
     latitude: number,
     longitude: number,
-    radiusKm: number = 50
+    radiusKm: number = 50,
+    shopId?: string
   ): Promise<WarehouseDTO[]> {
-    const response = await apiClient.get(
-      `${this.baseUrl}/nearby?latitude=${latitude}&longitude=${longitude}&radiusKm=${radiusKm}`
-    );
+    const params = new URLSearchParams({
+      latitude: latitude.toString(),
+      longitude: longitude.toString(),
+      radiusKm: radiusKm.toString(),
+    });
+    if (shopId) {
+      params.append("shopId", shopId);
+    }
+    const response = await apiClient.get(`${this.baseUrl}/nearby?${params.toString()}`);
     return response.data.data;
   }
 }

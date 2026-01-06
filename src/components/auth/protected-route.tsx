@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { useRouter, usePathname } from "next/navigation";
+import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { useAppSelector } from "@/lib/redux/hooks";
 import { UserRole } from "@/lib/constants";
 
@@ -24,6 +24,7 @@ export default function ProtectedRoute({
   );
   const router = useRouter();
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const hasRedirected = useRef(false);
 
   useEffect(() => {
@@ -40,7 +41,11 @@ export default function ProtectedRoute({
     // Check if user is authenticated
     if (!isAuthenticated) {
       hasRedirected.current = true;
-      router.push(`/auth?returnUrl=${encodeURIComponent(pathname)}`);
+      // Preserve the full URL including query params
+      const returnUrl = searchParams.toString() 
+        ? `${pathname}?${searchParams.toString()}`
+        : pathname;
+      router.push(`/auth?returnUrl=${encodeURIComponent(returnUrl)}`);
       return;
     }
 
@@ -54,9 +59,21 @@ export default function ProtectedRoute({
         router.push("/dashboard");
       }
     }
-  }, [isAuthenticated, user, allowedRoles, router, pathname, checkingAuth]);
+  }, [isAuthenticated, user, allowedRoles, router, pathname, checkingAuth, searchParams]);
 
-  if (checkingAuth) {
+  // Show loading while checking auth (but allow optimistic auth to pass through)
+  // Only show loading if we're actively checking AND don't have optimistic auth
+  if (checkingAuth && !isAuthenticated) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+
+  // If auth check is complete and user is not authenticated, show loading (will redirect)
+  // But only if we're not still checking (to allow optimistic auth during check)
+  if (!checkingAuth && !isAuthenticated) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>

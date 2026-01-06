@@ -202,19 +202,31 @@ class ProductService {
   /**
    * Get all products with pagination, sorting, and filtering
    * Uses the backend /products endpoint
+   * @param shopId Optional shop ID to filter products by shop
    */
   async getAllProducts(
     page: number = 0,
     size: number = 10,
     sortBy: string = "createdAt",
-    sortDir: string = "desc"
+    sortDir: string = "desc",
+    shopId?: string
   ): Promise<ManyProductsPaginationResponse> {
     try {
-      const response = await apiClient.get(`/products`, {
-        params: { page, size, sortBy, sortDirection: sortDir },
-      });
+      const params: any = { page, size, sortBy, sortDirection: sortDir };
+      if (shopId) {
+        params.shopId = shopId;
+      }
+      const response = await apiClient.get(`/products`, { params });
       return response.data;
-    } catch (error) {
+    } catch (error: any) {
+      // Handle shop-related errors
+      if (error.response?.status === 403 || error.response?.status === 400) {
+        const errorMessage = error.response?.data?.message || "Access denied to this shop";
+        if (errorMessage.toLowerCase().includes("shop") || errorMessage.toLowerCase().includes("authorized")) {
+          // Redirect to shops page will be handled by API client interceptor
+          throw new Error(errorMessage);
+        }
+      }
       throw handleApiError(error);
     }
   }
@@ -284,18 +296,31 @@ class ProductService {
     }
   }
 
-  async createEmptyProduct(name: string): Promise<{
+  async createEmptyProduct(name: string, shopId: string): Promise<{
     productId: string;
     status: string;
     completionPercentage: number;
     displayToCustomers: boolean;
   }> {
     try {
-      const response = await apiClient.post(
-        `/products/create-empty?name=${encodeURIComponent(name)}`
-      );
+      if (!shopId) {
+        throw new Error("Shop ID is required to create a product");
+      }
+      
+      const url = `/products/create-empty?name=${encodeURIComponent(name)}&shopId=${encodeURIComponent(shopId)}`;
+      console.log("Creating empty product - URL:", url);
+      console.log("Creating empty product - shopId:", shopId);
+      
+      const response = await apiClient.post(url);
       return response.data;
-    } catch (error) {
+    } catch (error: any) {
+      // Handle shop-related errors
+      if (error.response?.status === 403 || error.response?.status === 400) {
+        const errorMessage = error.response?.data?.message || "Access denied to this shop";
+        if (errorMessage.toLowerCase().includes("shop") || errorMessage.toLowerCase().includes("authorized")) {
+          throw new Error(errorMessage);
+        }
+      }
       throw handleApiError(error);
     }
   }
@@ -477,14 +502,25 @@ class ProductService {
   /**
    * Advanced search for products with complex filtering
    * Uses the backend /products/search endpoint
+   * @param shopId Optional shop ID to filter products by shop
    */
   async advancedSearchProducts(
-    filters: ProductSearchDTO
+    filters: ProductSearchDTO,
+    shopId?: string
   ): Promise<ManyProductsPaginationResponse> {
     try {
-      const response = await apiClient.post(`/products/search`, filters);
+      // Add shopId to filters if provided
+      const searchFilters = shopId ? { ...filters, shopId } : filters;
+      const response = await apiClient.post(`/products/search`, searchFilters);
       return response.data;
-    } catch (error) {
+    } catch (error: any) {
+      // Handle shop-related errors
+      if (error.response?.status === 403 || error.response?.status === 400) {
+        const errorMessage = error.response?.data?.message || "Access denied to this shop";
+        if (errorMessage.toLowerCase().includes("shop") || errorMessage.toLowerCase().includes("authorized")) {
+          throw new Error(errorMessage);
+        }
+      }
       throw handleApiError(error);
     }
   }

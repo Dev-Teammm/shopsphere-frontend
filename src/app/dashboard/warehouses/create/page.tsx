@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   warehouseService,
   CreateWarehouseDTO,
@@ -19,16 +19,29 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { ArrowLeft, Upload, X, MapPin, AlertTriangle } from "lucide-react";
+import { ArrowLeft, Upload, X, AlertTriangle } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
-import { useRouter } from "next/navigation";
-import { GoogleMapsAddressPicker } from "@/components/GoogleMapsWarehousePicker";
+import { useRouter, useSearchParams } from "next/navigation";
+import { shopService } from "@/lib/services/shop-service";
 
 export default function CreateWarehousePage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const queryClient = useQueryClient();
   const [images, setImages] = useState<File[]>([]);
-  const [addressSelected, setAddressSelected] = useState(false);
+  const shopSlug = searchParams.get("shopSlug");
+
+  const {
+    data: shopData,
+    isLoading: isLoadingShop,
+    isError: isErrorShop,
+  } = useQuery({
+    queryKey: ["shop", shopSlug],
+    queryFn: () => shopService.getShopBySlug(shopSlug!),
+    enabled: !!shopSlug,
+  });
+
+  const shopId = shopData?.shopId;
   const [formData, setFormData] = useState<CreateWarehouseDTO>({
     name: "",
     description: "",
@@ -54,7 +67,9 @@ export default function CreateWarehousePage() {
         description: "Warehouse created successfully",
       });
       queryClient.invalidateQueries({ queryKey: ["warehouses"] });
-      router.push("/dashboard/warehouses");
+      router.push(
+        `/dashboard/warehouses${shopSlug ? `?shopSlug=${shopSlug}` : ""}`
+      );
     },
     onError: (error: any) => {
       toast({
@@ -66,30 +81,27 @@ export default function CreateWarehousePage() {
     },
   });
 
-  // Handle Google Maps address selection
-  const handleGoogleMapsAddressSelect = (address: any) => {
-    // Combine street number and street name for the address field
-    const streetAddress = [address.streetNumber, address.streetName]
-      .filter(Boolean)
-      .join(' ') || address.formattedAddress;
-    
-    setFormData(prev => ({
-      ...prev,
-      address: streetAddress,
-      city: address.city,
-      state: address.state,
-      zipCode: "", // Google Maps AddressDetails doesn't include zipCode, user will need to add it
-      country: address.country,
-      latitude: address.latitude,
-      longitude: address.longitude,
-    }));
-    setAddressSelected(true);
-    
-    toast({
-      title: "Location Selected",
-      description: "Address details have been automatically filled from the map selection. Please add the zip code.",
-    });
-  };
+  useEffect(() => {
+    // Warehouses are shop-scoped for vendor/employee flows; ensure shopSlug is present.
+    if (!shopSlug) {
+      toast({
+        title: "Missing shop",
+        description: "Please open this page from a shop context.",
+        variant: "destructive",
+      });
+      router.push("/shops");
+      return;
+    }
+
+    if (isErrorShop || (!isLoadingShop && !shopData)) {
+      toast({
+        title: "Shop not found",
+        description: "Redirecting to shops page.",
+        variant: "destructive",
+      });
+      router.push("/shops");
+    }
+  }, [shopSlug, isLoadingShop, isErrorShop, shopData, router]);
 
   const handleInputChange = (
     field: keyof CreateWarehouseDTO,
@@ -99,11 +111,6 @@ export default function CreateWarehousePage() {
       ...prev,
       [field]: value,
     }));
-
-    // Reset address selection when address fields are manually changed
-    if (field === "address" || field === "city" || field === "state" || field === "zipCode" || field === "country") {
-      setAddressSelected(false);
-    }
   };
 
   const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -117,6 +124,15 @@ export default function CreateWarehousePage() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (!shopId) {
+      toast({
+        title: "Please wait",
+        description: "Shop information is still loading.",
+        variant: "default",
+      });
+      return;
+    }
 
     // Basic validation
     if (
@@ -135,8 +151,20 @@ export default function CreateWarehousePage() {
       return;
     }
 
+    // Google Maps is disabled (API key expired). Mock a stable static location if none was provided.
+    // You can change these to your preferred default coordinates.
+    const mockedLatitude =
+      typeof formData.latitude === "number" ? formData.latitude : -1.9441;
+    const mockedLongitude =
+      typeof formData.longitude === "number" ? formData.longitude : 30.0619;
+
     createMutation.mutate({
-      warehouse: formData,
+      warehouse: {
+        ...formData,
+        shopId,
+        latitude: mockedLatitude,
+        longitude: mockedLongitude,
+      },
       images: images.length > 0 ? images : undefined,
     });
   };
@@ -158,6 +186,13 @@ export default function CreateWarehousePage() {
           </p>
         </div>
       </div>
+
+      {isLoadingShop && (
+        <Alert>
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription>Loading shop information…</AlertDescription>
+        </Alert>
+      )}
 
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* Basic Information */}
@@ -223,30 +258,18 @@ export default function CreateWarehousePage() {
           <CardHeader>
             <CardTitle>Address Information</CardTitle>
             <CardDescription>
-              {addressSelected 
-                ? "Address automatically filled from map selection" 
-                : "Address will be automatically filled when you select a location on the map below"}
+              Enter the warehouse address details (Google Maps is currently disabled).
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {addressSelected && (
-              <Alert>
-                <MapPin className="h-4 w-4" />
-                <AlertDescription>
-                  Address details have been automatically filled from your map selection. You can manually edit them if needed.
-                </AlertDescription>
-              </Alert>
-            )}
-            
             <div className="space-y-2">
               <Label htmlFor="address">Address *</Label>
               <Input
                 id="address"
                 value={formData.address}
                 onChange={(e) => handleInputChange("address", e.target.value)}
-                placeholder={addressSelected ? "Auto-filled from map" : "Will be filled from map selection"}
+                placeholder="Enter street address"
                 required
-                className={addressSelected ? "bg-green-50 border-green-200" : ""}
               />
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -256,9 +279,8 @@ export default function CreateWarehousePage() {
                   id="city"
                   value={formData.city}
                   onChange={(e) => handleInputChange("city", e.target.value)}
-                  placeholder={addressSelected ? "Auto-filled from map" : "Will be filled from map"}
+                  placeholder="Enter city"
                   required
-                  className={addressSelected ? "bg-green-50 border-green-200" : ""}
                 />
               </div>
               <div className="space-y-2">
@@ -267,9 +289,8 @@ export default function CreateWarehousePage() {
                   id="state"
                   value={formData.state}
                   onChange={(e) => handleInputChange("state", e.target.value)}
-                  placeholder={addressSelected ? "Auto-filled from map" : "Will be filled from map"}
+                  placeholder="Enter state"
                   required
-                  className={addressSelected ? "bg-green-50 border-green-200" : ""}
                 />
               </div>
               <div className="space-y-2">
@@ -278,9 +299,8 @@ export default function CreateWarehousePage() {
                   id="zipCode"
                   value={formData.zipCode}
                   onChange={(e) => handleInputChange("zipCode", e.target.value)}
-                  placeholder={addressSelected ? "Auto-filled from map" : "Will be filled from map"}
+                  placeholder="Enter zip code"
                   required
-                  className={addressSelected ? "bg-green-50 border-green-200" : ""}
                 />
               </div>
             </div>
@@ -290,50 +310,10 @@ export default function CreateWarehousePage() {
                 id="country"
                 value={formData.country}
                 onChange={(e) => handleInputChange("country", e.target.value)}
-                placeholder={addressSelected ? "Auto-filled from map" : "Will be filled from map"}
+                placeholder="Enter country"
                 required
-                className={addressSelected ? "bg-green-50 border-green-200" : ""}
               />
             </div>
-            
-            {formData.latitude && formData.longitude && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t">
-                <div className="space-y-2">
-                  <Label htmlFor="latitude">Latitude</Label>
-                  <Input
-                    id="latitude"
-                    type="number"
-                    step="any"
-                    value={formData.latitude || ""}
-                    onChange={(e) =>
-                      handleInputChange(
-                        "latitude",
-                        e.target.value ? parseFloat(e.target.value) : 0
-                      )
-                    }
-                    placeholder="Auto-filled from map"
-                    className="bg-green-50 border-green-200"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="longitude">Longitude</Label>
-                  <Input
-                    id="longitude"
-                    type="number"
-                    step="any"
-                    value={formData.longitude || ""}
-                    onChange={(e) =>
-                      handleInputChange(
-                        "longitude",
-                        e.target.value ? parseFloat(e.target.value) : 0
-                      )
-                    }
-                    placeholder="Auto-filled from map"
-                    className="bg-green-50 border-green-200"
-                  />
-                </div>
-              </div>
-            )}
           </CardContent>
         </Card>
 
@@ -370,24 +350,17 @@ export default function CreateWarehousePage() {
           </CardContent>
         </Card>
 
-        {/* Google Maps Location Picker */}
-        {process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ? (
-          <GoogleMapsAddressPicker
-            onAddressSelect={handleGoogleMapsAddressSelect}
-            apiKey={process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}
-          />
-        ) : (
-          <Card>
-            <CardContent className="p-6">
-              <Alert variant="destructive">
-                <AlertTriangle className="h-4 w-4" />
-                <AlertDescription>
-                  Google Maps API key is not configured.
-                </AlertDescription>
-              </Alert>
-            </CardContent>
-          </Card>
-        )}
+        {/* Google Maps picker intentionally disabled (API key expired). */}
+        <Card>
+          <CardContent className="p-6">
+            <Alert>
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription>
+                Google Maps is currently disabled. We’ll use a mocked latitude/longitude on create if none is set.
+              </AlertDescription>
+            </Alert>
+          </CardContent>
+        </Card>
 
         {/* Images */}
         <Card>

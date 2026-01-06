@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { cn } from "@/lib/utils";
 import {
   Home,
@@ -46,10 +46,21 @@ export function Sidebar({ className }: SidebarProps) {
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const shopSlug = searchParams.get("shopSlug");
   const dispatch = useAppDispatch();
   const { data: pendingAppealsCount, isLoading: isLoadingAppeals } = usePendingAppealsCount();
   const { data: pendingOrdersCount, isLoading: isLoadingOrders } = usePendingOrdersCount();
   const { data: pendingReturnsCount, isLoading: isLoadingReturns } = usePendingReturnsCount();
+
+  // Helper function to append shopSlug to href if it exists
+  const getHrefWithShopSlug = (href: string): string => {
+    if (shopSlug) {
+      const separator = href.includes("?") ? "&" : "?";
+      return `${href}${separator}shopSlug=${encodeURIComponent(shopSlug)}`;
+    }
+    return href;
+  };
 
   const toggleSidebar = () => {
     setCollapsed(!collapsed);
@@ -85,7 +96,7 @@ export function Sidebar({ className }: SidebarProps) {
     >
       <div className="flex h-14 items-center px-3 border-b bg-primary/5">
         <Link
-          href="/dashboard"
+          href={getHrefWithShopSlug("/dashboard")}
           className={cn(
             "flex items-center gap-2 font-semibold",
             collapsed ? "justify-center" : "justify-start"
@@ -112,21 +123,21 @@ export function Sidebar({ className }: SidebarProps) {
       <ScrollArea className="flex-1 overflow-auto">
         <div className={cn("flex flex-col gap-1 p-2")}>
           <SidebarItem
-            href="/dashboard"
+            href={getHrefWithShopSlug("/dashboard")}
             icon={Home}
             label="Dashboard"
             collapsed={collapsed}
             isActive={pathname === "/dashboard"}
           />
           <SidebarItem
-            href="/dashboard/products"
+            href={getHrefWithShopSlug("/dashboard/products")}
             icon={Package}
             label="Products"
             collapsed={collapsed}
             isActive={pathname.startsWith("/dashboard/products")}
           />
           <SidebarItemWithBadge
-            href="/dashboard/orders"
+            href={getHrefWithShopSlug("/dashboard/orders")}
             icon={ShoppingCart}
             label="Orders"
             collapsed={collapsed}
@@ -135,14 +146,14 @@ export function Sidebar({ className }: SidebarProps) {
             isLoading={isLoadingOrders}
           />
           <SidebarItem
-            href="/dashboard/delivery-groups"
+            href={getHrefWithShopSlug("/dashboard/delivery-groups")}
             icon={PackageCheck}
             label="Delivery Groups"
             collapsed={collapsed}
             isActive={pathname.startsWith("/dashboard/delivery-groups")}
           />
           <SidebarItemWithBadge
-            href="/dashboard/returns"
+            href={getHrefWithShopSlug("/dashboard/returns")}
             icon={RotateCcw}
             label="Return Requests"
             collapsed={collapsed}
@@ -151,7 +162,7 @@ export function Sidebar({ className }: SidebarProps) {
             isLoading={isLoadingReturns}
           />
           <SidebarItemWithBadge
-            href="/dashboard/appeals"
+            href={getHrefWithShopSlug("/dashboard/appeals")}
             icon={MessageSquareX}
             label="Appeals"
             collapsed={collapsed}
@@ -160,42 +171,42 @@ export function Sidebar({ className }: SidebarProps) {
             isLoading={isLoadingAppeals}
           />
           <SidebarItem
-            href="/dashboard/shipping-costs"
+            href={getHrefWithShopSlug("/dashboard/shipping-costs")}
             icon={Truck}
             label="Shipping Costs"
             collapsed={collapsed}
             isActive={pathname.startsWith("/dashboard/shipping-costs")}
           />
           <SidebarItem
-            href="/dashboard/invitations"
+            href={getHrefWithShopSlug("/dashboard/invitations")}
             icon={Mail}
             label="Invitations"
             collapsed={collapsed}
             isActive={pathname.startsWith("/dashboard/invitations")}
           />
           <SidebarItem
-            href="/dashboard/categories"
+            href={getHrefWithShopSlug("/dashboard/categories")}
             icon={TagIcon}
             label="Categories"
             collapsed={collapsed}
             isActive={pathname.startsWith("/dashboard/categories")}
           />
           <SidebarItem
-            href="/dashboard/discounts"
+            href={getHrefWithShopSlug("/dashboard/discounts")}
             icon={Percent}
             label="Discounts"
             collapsed={collapsed}
             isActive={pathname.startsWith("/dashboard/discounts")}
           />
           <SidebarItem
-            href="/dashboard/warehouses"
+            href={getHrefWithShopSlug("/dashboard/warehouses")}
             icon={Warehouse}
             label="Warehouses"
             collapsed={collapsed}
             isActive={pathname.startsWith("/dashboard/warehouses")}
           />
           <SidebarItem
-            href="/dashboard/reward-system"
+            href={getHrefWithShopSlug("/dashboard/reward-system")}
             icon={Gift}
             label="Reward System"
             collapsed={collapsed}
@@ -203,7 +214,7 @@ export function Sidebar({ className }: SidebarProps) {
           />
           <Separator className="my-2" />
           <SidebarItem
-            href="/dashboard/settings"
+            href={getHrefWithShopSlug("/dashboard/settings")}
             icon={Settings}
             label="Settings"
             collapsed={collapsed}

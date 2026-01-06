@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -42,6 +42,7 @@ import { ProductDiscountModal } from "@/components/ProductDiscountModal";
 import { FilterDialog } from "@/components/products/FilterDialog";
 import { FilterButton } from "@/components/products/FilterButton";
 import { productService } from "@/lib/services/product-service";
+import { shopService } from "@/lib/services/shop-service";
 import {
   ManyProductsDto,
   ProductSearchDTO,
@@ -61,6 +62,12 @@ import { toast } from "@/components/ui/use-toast";
 
 export default function ProductsPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const shopSlug = searchParams.get("shopSlug");
+
+  // Shop state
+  const [shopId, setShopId] = useState<string | null>(null);
+  const [shopError, setShopError] = useState<string | null>(null);
 
   // Pagination and filter state
   const [searchFilters, setSearchFilters] = useState<ProductSearchDTO>({
@@ -85,9 +92,58 @@ export default function ProductsPage() {
   const [productToDelete, setProductToDelete] = useState<string>("");
   const [dontAskAgain, setDontAskAgain] = useState(false);
 
+  // Fetch shop by slug to get shopId
+  const { data: shopData, isLoading: shopLoading, error: shopFetchError } = useQuery({
+    queryKey: ["shop", shopSlug],
+    queryFn: () => {
+      if (!shopSlug) {
+        throw new Error("Shop slug is required");
+      }
+      return shopService.getShopBySlug(shopSlug);
+    },
+    enabled: !!shopSlug,
+    retry: false,
+  });
+
+  // Update shopId when shop data is fetched
+  useEffect(() => {
+    if (shopData) {
+      setShopId(shopData.shopId);
+      setShopError(null);
+    }
+  }, [shopData]);
+
+  // Handle shop fetch error - redirect to /shops
+  useEffect(() => {
+    if (shopFetchError && shopSlug) {
+      console.error("Error fetching shop:", shopFetchError);
+      setShopError("Shop not found or you don't have access to it");
+      // Redirect to shops page after a short delay
+      setTimeout(() => {
+        router.push("/shops");
+      }, 2000);
+    }
+  }, [shopFetchError, shopSlug, router]);
+
+  // Redirect if no shopSlug is provided - do this immediately
+  useEffect(() => {
+    if (!shopSlug) {
+      router.replace("/shops");
+    }
+  }, [shopSlug, router]);
+
+  // Don't render if no shopSlug (will redirect)
+  if (!shopSlug) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+
   // Fetch products with React Query
   const { data, isLoading, isError, error, refetch } = useQuery({
-    queryKey: ["products", searchFilters],
+    queryKey: ["products", searchFilters, shopId],
     queryFn: () => {
       // If we have search criteria, use search endpoint
       if (
@@ -101,16 +157,18 @@ export default function ProductsPage() {
         searchFilters.basePriceMax ||
         searchFilters.inStock
       ) {
-        return productService.advancedSearchProducts(searchFilters);
+        return productService.advancedSearchProducts(searchFilters, shopId || undefined);
       }
-      // Otherwise use getAllProducts
+      // Otherwise use getAllProducts with shopId
       return productService.getAllProducts(
         searchFilters.page || 0,
         searchFilters.size || 10,
         searchFilters.sortBy || "createdAt",
-        searchFilters.sortDirection || "desc"
+        searchFilters.sortDirection || "desc",
+        shopId || undefined
       );
     },
+    enabled: !!shopId, // Only fetch when shopId is available
   });
 
   // Function to open discount modal
@@ -168,16 +226,54 @@ export default function ProductsPage() {
   };
 
   const handleCreateEmptyProduct = async () => {
-    try {
-      const response = await productService.createEmptyProduct("New Product");
-      router.push(`/dashboard/products/${response.productId}/update`);
-    } catch (error) {
-      console.error("Error creating empty product:", error);
+    // Validate shopId is available
+    if (!shopId) {
       toast({
         title: "Error",
-        description: "Failed to create new product",
+        description: "Shop information is required to create a product. Please wait for shop data to load.",
         variant: "destructive",
       });
+      return;
+    }
+
+    // Validate shopSlug is available for navigation
+    if (!shopSlug) {
+      toast({
+        title: "Error",
+        description: "Shop context is missing. Please return to the shops page and try again.",
+        variant: "destructive",
+      });
+      router.push("/shops");
+      return;
+    }
+
+    try {
+      console.log("Creating empty product with shopId:", shopId);
+      const response = await productService.createEmptyProduct("New Product", shopId);
+      console.log("Product created successfully:", response);
+      router.push(`/dashboard/products/${response.productId}/update?shopSlug=${shopSlug}`);
+    } catch (error: any) {
+      console.error("Error creating empty product:", error);
+      
+      // Handle shop-related errors
+      if (error.response?.status === 403 || error.response?.status === 400) {
+        const errorMessage = error.response?.data?.message || "Access denied to this shop";
+        toast({
+          title: "Access Denied",
+          description: errorMessage,
+          variant: "destructive",
+        });
+        // Redirect to shops page if access is denied
+        setTimeout(() => {
+          router.push("/shops");
+        }, 2000);
+      } else {
+        toast({
+          title: "Error",
+          description: error.message || "Failed to create new product. Please try again.",
+          variant: "destructive",
+        });
+      }
     }
   };
 
@@ -282,9 +378,10 @@ export default function ProductsPage() {
           <Button
             className="bg-primary hover:bg-primary/90"
             onClick={handleCreateEmptyProduct}
+            disabled={!shopId || shopLoading}
           >
             <Plus className="w-4 h-4 mr-2" />
-            Add Product
+            {shopLoading ? "Loading..." : "Add Product"}
           </Button>
         </div>
       </div>
@@ -320,10 +417,35 @@ export default function ProductsPage() {
         )}
       </div>
 
+      {/* Shop Loading/Error State */}
+      {shopLoading && (
+        <Card className="border-border/40 shadow-sm">
+          <CardContent className="p-6">
+            <div className="flex justify-center items-center py-12">
+              <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary"></div>
+              <span className="ml-3 text-muted-foreground">Loading shop information...</span>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {shopError && (
+        <Card className="border-border/40 shadow-sm">
+          <CardContent className="p-6">
+            <div className="flex flex-col items-center justify-center py-12">
+              <h3 className="text-lg font-medium mb-2 text-destructive">Shop Error</h3>
+              <p className="text-muted-foreground mb-4">{shopError}</p>
+              <p className="text-sm text-muted-foreground">Redirecting to shops page...</p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Product List */}
-      <Card className="border-border/40 shadow-sm">
-        <CardContent className="p-0">
-          {isLoading ? (
+      {!shopLoading && !shopError && (
+        <Card className="border-border/40 shadow-sm">
+          <CardContent className="p-0">
+            {isLoading ? (
             <div className="flex justify-center items-center py-20">
               <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
             </div>
@@ -357,9 +479,12 @@ export default function ProductsPage() {
                   <FilterIcon className="w-4 h-4 mr-2" />
                   Adjust Filters
                 </Button>
-                <Button onClick={handleCreateEmptyProduct}>
+                <Button 
+                  onClick={handleCreateEmptyProduct}
+                  disabled={!shopId || shopLoading}
+                >
                   <Plus className="w-4 h-4 mr-2" />
-                  Add Product
+                  {shopLoading ? "Loading..." : "Add Product"}
                 </Button>
               </div>
             </div>
@@ -527,7 +652,7 @@ export default function ProductsPage() {
                                 className="h-8 w-8 text-primary hover:text-primary hover:bg-primary/10"
                                 onClick={() =>
                                   router.push(
-                                    `/dashboard/products/${product.productId}`
+                                    `/dashboard/products/${product.productId}${shopSlug ? `?shopSlug=${encodeURIComponent(shopSlug)}` : ""}`
                                   )
                                 }
                               >
@@ -547,7 +672,7 @@ export default function ProductsPage() {
                                 className="h-8 w-8 text-primary hover:text-primary hover:bg-primary/10"
                                 onClick={() =>
                                   router.push(
-                                    `/dashboard/products/${product.productId}/update`
+                                    `/dashboard/products/${product.productId}/update${shopSlug ? `?shopSlug=${encodeURIComponent(shopSlug)}` : ""}`
                                   )
                                 }
                               >
@@ -600,16 +725,14 @@ export default function ProductsPage() {
               </TableBody>
             </Table>
           )}
-        </CardContent>
-      </Card>
 
-      {/* Pagination */}
-      {!isLoading &&
-        !isError &&
-        data &&
-        data.content &&
-        data.content.length > 0 && (
-          <div className="flex justify-center">
+          {/* Pagination */}
+          {!isLoading &&
+            !isError &&
+            data &&
+            data.content &&
+            data.content.length > 0 && (
+              <div className="flex justify-center">
             <Pagination>
               <PaginationContent>
                 <PaginationItem>
@@ -675,8 +798,11 @@ export default function ProductsPage() {
                 </PaginationItem>
               </PaginationContent>
             </Pagination>
-          </div>
-        )}
+              </div>
+            )}
+        </CardContent>
+      </Card>
+      )}
 
       {/* Filters Dialog */}
       <FilterDialog

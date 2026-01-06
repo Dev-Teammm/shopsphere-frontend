@@ -15,8 +15,6 @@ export interface RewardSystemDTO {
   isSystemEnabled: boolean;
   isReviewPointsEnabled: boolean;
   reviewPointsAmount: number;
-  isSignupPointsEnabled: boolean;
-  signupPointsAmount: number;
   isPurchasePointsEnabled: boolean;
   isQuantityBasedEnabled: boolean;
   isAmountBasedEnabled: boolean;
@@ -26,6 +24,8 @@ export interface RewardSystemDTO {
   createdAt?: string;
   updatedAt?: string;
   rewardRanges?: RewardRangeDTO[];
+  shopId?: string;
+  shopName?: string;
 }
 
 export interface UserPointsDTO {
@@ -65,8 +65,6 @@ export interface CreateRewardSystemRequest {
   isSystemEnabled: boolean;
   isReviewPointsEnabled: boolean;
   reviewPointsAmount: number;
-  isSignupPointsEnabled: boolean;
-  signupPointsAmount: number;
   isPurchasePointsEnabled: boolean;
   isQuantityBasedEnabled: boolean;
   isAmountBasedEnabled: boolean;

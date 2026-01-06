@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useRouter, useParams } from "next/navigation";
+import { useState, useEffect, useRef } from "react";
+import { useRouter, useParams, useSearchParams } from "next/navigation";
+import { shopService } from "@/lib/services/shop-service";
 import {
   Card,
   CardContent,
@@ -33,9 +34,13 @@ import {
 export default function EditRewardSystemPage() {
   const router = useRouter();
   const params = useParams();
+  const searchParams = useSearchParams();
   const systemId = params.id as string;
+  const shopSlug = searchParams.get("shopSlug");
+  const shopIdRef = useRef<string | null>(null);
 
   const [loading, setLoading] = useState(true);
+  const [shopLoading, setShopLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [rewardSystem, setRewardSystem] = useState<RewardSystemDTO | null>(
     null
@@ -43,17 +48,57 @@ export default function EditRewardSystemPage() {
   const [rewardRanges, setRewardRanges] = useState<RewardRangeDTO[]>([]);
   const { toast } = useToast();
 
+  // Fetch shopId from shopSlug
   useEffect(() => {
-    if (systemId) {
+    const fetchShopId = async () => {
+      if (!shopSlug) {
+        toast({
+          title: "Error",
+          description: "Shop slug is required",
+          variant: "destructive",
+        });
+        router.push(`/dashboard/reward-system${shopSlug ? `?shopSlug=${shopSlug}` : ""}`);
+        return;
+      }
+
+      try {
+        setShopLoading(true);
+        const shop = await shopService.getShopBySlug(shopSlug);
+        shopIdRef.current = shop.shopId;
+        if (shop.shopId) {
+          sessionStorage.setItem("selectedShopId", shop.shopId);
+          sessionStorage.setItem("selectedShopSlug", shopSlug);
+        }
+      } catch (error: any) {
+        console.error("Error fetching shop:", error);
+        toast({
+          title: "Error",
+          description: "Failed to load shop information",
+          variant: "destructive",
+        });
+        router.push(`/dashboard/reward-system${shopSlug ? `?shopSlug=${shopSlug}` : ""}`);
+      } finally {
+        setShopLoading(false);
+      }
+    };
+
+    fetchShopId();
+  }, [shopSlug, router, toast]);
+
+  useEffect(() => {
+    if (systemId && shopIdRef.current && !shopLoading) {
       loadRewardSystem();
     }
-  }, [systemId]);
+  }, [systemId, shopLoading]);
 
   const loadRewardSystem = async () => {
+    if (!shopIdRef.current) return;
+
     try {
       setLoading(true);
       const system = await rewardSystemService.getRewardSystemById(
-        parseInt(systemId)
+        parseInt(systemId),
+        shopIdRef.current
       );
       setRewardSystem(system);
       setRewardRanges(system.rewardRanges || []);
@@ -64,7 +109,7 @@ export default function EditRewardSystemPage() {
         description: "Failed to load reward system",
         variant: "destructive",
       });
-      router.push("/dashboard/reward-system");
+      router.push(`/dashboard/reward-system${shopSlug ? `?shopSlug=${shopSlug}` : ""}`);
     } finally {
       setLoading(false);
     }
@@ -117,14 +162,26 @@ export default function EditRewardSystemPage() {
         rewardRanges: updatedRanges,
       };
 
-      const saved = await rewardSystemService.saveRewardSystem(updatedSystem);
+      if (!shopIdRef.current) {
+        toast({
+          title: "Error",
+          description: "Shop information not loaded",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const saved = await rewardSystemService.saveRewardSystem(
+        updatedSystem,
+        shopIdRef.current
+      );
 
       toast({
         title: "Success",
         description: "Reward system updated successfully",
       });
 
-      router.push("/dashboard/reward-system");
+      router.push(`/dashboard/reward-system${shopSlug ? `?shopSlug=${shopSlug}` : ""}`);
     } catch (error: any) {
       console.error("Failed to save reward system:", error);
       toast({
@@ -139,7 +196,7 @@ export default function EditRewardSystemPage() {
   };
 
   const handleToggle = async (field: keyof RewardSystemDTO, value: boolean) => {
-    if (!rewardSystem?.id) return;
+    if (!rewardSystem?.id || !shopIdRef.current) return;
 
     try {
       let updatedSystem: RewardSystemDTO;
@@ -148,44 +205,43 @@ export default function EditRewardSystemPage() {
         case "isSystemEnabled":
           updatedSystem = await rewardSystemService.toggleSystemEnabled(
             rewardSystem.id,
+            shopIdRef.current,
             value
           );
           break;
         case "isReviewPointsEnabled":
           updatedSystem = await rewardSystemService.toggleReviewPoints(
             rewardSystem.id,
+            shopIdRef.current,
             value,
             rewardSystem.reviewPointsAmount
-          );
-          break;
-        case "isSignupPointsEnabled":
-          updatedSystem = await rewardSystemService.toggleSignupPoints(
-            rewardSystem.id,
-            value,
-            rewardSystem.signupPointsAmount
           );
           break;
         case "isPurchasePointsEnabled":
           updatedSystem = await rewardSystemService.togglePurchasePoints(
             rewardSystem.id,
+            shopIdRef.current,
             value
           );
           break;
         case "isQuantityBasedEnabled":
           updatedSystem = await rewardSystemService.toggleQuantityBased(
             rewardSystem.id,
+            shopIdRef.current,
             value
           );
           break;
         case "isAmountBasedEnabled":
           updatedSystem = await rewardSystemService.toggleAmountBased(
             rewardSystem.id,
+            shopIdRef.current,
             value
           );
           break;
         case "isPercentageBasedEnabled":
           updatedSystem = await rewardSystemService.togglePercentageBased(
             rewardSystem.id,
+            shopIdRef.current,
             value,
             rewardSystem.percentageRate
           );
@@ -211,11 +267,12 @@ export default function EditRewardSystemPage() {
   };
 
   const handleActivate = async () => {
-    if (!rewardSystem?.id) return;
+    if (!rewardSystem?.id || !shopIdRef.current) return;
 
     try {
       const updatedSystem = await rewardSystemService.activateRewardSystem(
-        rewardSystem.id
+        rewardSystem.id,
+        shopIdRef.current
       );
       setRewardSystem(updatedSystem);
       toast({
@@ -260,13 +317,29 @@ export default function EditRewardSystemPage() {
     setRewardRanges(rewardRanges.filter((_, i) => i !== index));
   };
 
-  if (loading) {
+  if (shopLoading || loading) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Loading reward system...</p>
+          <p className="text-muted-foreground">
+            {shopLoading ? "Loading shop information..." : "Loading reward system..."}
+          </p>
         </div>
+      </div>
+    );
+  }
+
+  if (!shopIdRef.current) {
+    return (
+      <div className="text-center py-8">
+        <p className="text-muted-foreground">Shop not found</p>
+        <Button
+          onClick={() => router.push(`/dashboard/reward-system${shopSlug ? `?shopSlug=${shopSlug}` : ""}`)}
+          className="mt-4"
+        >
+          Back to Reward Systems
+        </Button>
       </div>
     );
   }
@@ -470,47 +543,6 @@ export default function EditRewardSystemPage() {
                   }
                   placeholder="10"
                   disabled={!rewardSystem.isReviewPointsEnabled}
-                />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Signup Points */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Signup Points</CardTitle>
-            <CardDescription>
-              Configure points awarded for new user signups
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="signupEnabled">Enable Signup Points</Label>
-                <Switch
-                  id="signupEnabled"
-                  checked={rewardSystem.isSignupPointsEnabled}
-                  onCheckedChange={(checked) =>
-                    handleToggle("isSignupPointsEnabled", checked)
-                  }
-                />
-              </div>
-              <div className="flex items-center justify-between">
-                <Label htmlFor="signupAmount">Points for Signup</Label>
-                <Input
-                  id="signupAmount"
-                  type="number"
-                  min="1"
-                  value={rewardSystem.signupPointsAmount || 0}
-                  onChange={(e) =>
-                    setRewardSystem({
-                      ...rewardSystem,
-                      signupPointsAmount: parseInt(e.target.value) || 0,
-                    })
-                  }
-                  placeholder="50"
-                  disabled={!rewardSystem.isSignupPointsEnabled}
                 />
               </div>
             </div>

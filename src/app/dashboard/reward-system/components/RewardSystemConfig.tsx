@@ -22,11 +22,13 @@ import { Save, Edit3 } from "lucide-react";
 interface RewardSystemConfigProps {
   rewardSystem: RewardSystemDTO;
   onUpdate: (updatedSystem: RewardSystemDTO) => void;
+  shopId: string;
 }
 
 export function RewardSystemConfig({
   rewardSystem,
   onUpdate,
+  shopId,
 }: RewardSystemConfigProps) {
   const [loading, setLoading] = useState(false);
   const [config, setConfig] = useState<RewardSystemDTO>(rewardSystem);
@@ -43,44 +45,43 @@ export function RewardSystemConfig({
         case "isSystemEnabled":
           updatedSystem = await rewardSystemService.toggleSystemEnabled(
             rewardSystem.id,
+            shopId,
             value
           );
           break;
         case "isReviewPointsEnabled":
           updatedSystem = await rewardSystemService.toggleReviewPoints(
             rewardSystem.id,
+            shopId,
             value,
             config.reviewPointsAmount
-          );
-          break;
-        case "isSignupPointsEnabled":
-          updatedSystem = await rewardSystemService.toggleSignupPoints(
-            rewardSystem.id,
-            value,
-            config.signupPointsAmount
           );
           break;
         case "isPurchasePointsEnabled":
           updatedSystem = await rewardSystemService.togglePurchasePoints(
             rewardSystem.id,
+            shopId,
             value
           );
           break;
         case "isQuantityBasedEnabled":
           updatedSystem = await rewardSystemService.toggleQuantityBased(
             rewardSystem.id,
+            shopId,
             value
           );
           break;
         case "isAmountBasedEnabled":
           updatedSystem = await rewardSystemService.toggleAmountBased(
             rewardSystem.id,
+            shopId,
             value
           );
           break;
         case "isPercentageBasedEnabled":
           updatedSystem = await rewardSystemService.togglePercentageBased(
             rewardSystem.id,
+            shopId,
             value,
             config.percentageRate
           );
@@ -111,7 +112,7 @@ export function RewardSystemConfig({
   const handleSave = async () => {
     try {
       setLoading(true);
-      const updatedSystem = await rewardSystemService.saveRewardSystem(config);
+      const updatedSystem = await rewardSystemService.saveRewardSystem(config, shopId);
       setConfig(updatedSystem);
       onUpdate(updatedSystem);
       toast({
@@ -137,7 +138,8 @@ export function RewardSystemConfig({
     try {
       setLoading(true);
       const updatedSystem = await rewardSystemService.activateRewardSystem(
-        rewardSystem.id
+        rewardSystem.id,
+        shopId
       );
       setConfig(updatedSystem);
       onUpdate(updatedSystem);
@@ -269,42 +271,6 @@ export function RewardSystemConfig({
                   }
                   placeholder="10"
                   disabled={!config.isReviewPointsEnabled}
-                />
-              </div>
-            </div>
-          </div>
-
-          <Separator />
-
-          <div className="space-y-4">
-            <h3 className="text-lg font-semibold">Signup Points</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="signupEnabled">Enable Signup Points</Label>
-                <Switch
-                  id="signupEnabled"
-                  checked={config.isSignupPointsEnabled}
-                  onCheckedChange={(checked) =>
-                    handleToggle("isSignupPointsEnabled", checked)
-                  }
-                  disabled={loading}
-                />
-              </div>
-              <div className="flex items-center justify-between">
-                <Label htmlFor="signupAmount">Points for Signup</Label>
-                <Input
-                  id="signupAmount"
-                  type="number"
-                  min="1"
-                  value={config.signupPointsAmount}
-                  onChange={(e) =>
-                    setConfig({
-                      ...config,
-                      signupPointsAmount: parseInt(e.target.value) || 0,
-                    })
-                  }
-                  placeholder="50"
-                  disabled={!config.isSignupPointsEnabled}
                 />
               </div>
             </div>

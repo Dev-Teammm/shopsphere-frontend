@@ -22,6 +22,7 @@ import { Layers, Eye, EyeOff } from "lucide-react";
 import { authService } from "@/lib/services/auth-service";
 import { LoginRequest } from "@/lib/types";
 import { useAppDispatch, useAppSelector } from "@/lib/redux/hooks";
+import type { RootState } from "@/lib/redux/store";
 import {
   loginStart,
   loginSuccess,
@@ -48,7 +49,7 @@ export function LoginForm() {
     isAuthenticated,
     isLoading: authLoading,
     error: authError,
-  } = useAppSelector((state) => state.auth);
+  } = useAppSelector((state: RootState) => state.auth);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -58,12 +59,28 @@ export function LoginForm() {
     },
   });
 
+  const { user } = useAppSelector((state: RootState) => state.auth);
+
   // Redirect if already authenticated
   useEffect(() => {
-    if (isAuthenticated && !authLoading) {
-      router.replace(returnUrl);
+    if (isAuthenticated && !authLoading && user) {
+      // If returnUrl is provided and valid, use it
+      if (returnUrl && returnUrl !== "/auth" && returnUrl.startsWith("/")) {
+        router.replace(returnUrl);
+      } else if (
+        user.role === UserRole.VENDOR ||
+        user.role === UserRole.CUSTOMER ||
+        user.role === UserRole.EMPLOYEE ||
+        user.role === UserRole.ADMIN
+      ) {
+        router.replace("/shops");
+      } else if (user.role === UserRole.DELIVERY_AGENT) {
+        router.replace("/delivery-agent/dashboard");
+      } else {
+        router.replace("/dashboard");
+      }
     }
-  }, [isAuthenticated, router, returnUrl, authLoading]);
+  }, [isAuthenticated, router, authLoading, user, returnUrl]);
 
   // Show auth error if any
   useEffect(() => {
@@ -102,25 +119,22 @@ export function LoginForm() {
         description: data.message || "Logged in successfully",
       });
 
-      if (
-        data.role != UserRole.ADMIN &&
-        data.role != UserRole.EMPLOYEE &&
-        data.role != UserRole.DELIVERY_AGENT
+      // If returnUrl is provided and valid, use it
+      // Otherwise, redirect based on role
+      if (returnUrl && returnUrl !== "/auth" && returnUrl.startsWith("/")) {
+        router.replace(returnUrl);
+      } else if (
+        data.role === UserRole.VENDOR ||
+        data.role === UserRole.CUSTOMER ||
+        data.role === UserRole.EMPLOYEE ||
+        data.role === UserRole.ADMIN
       ) {
-        localStorage.removeItem("admin_auth_token");
-        
-        toast({
-          title: "Redirecting...",
-          description: "You're being redirected to the customer portal",
-        });
-        
-        setTimeout(() => {
-          window.location.href = "https://shopsphere-frontend.vercel.app/shop";
-        }, 500);
-        return;
+        router.replace("/shops");
+      } else if (data.role === UserRole.DELIVERY_AGENT) {
+        router.replace("/delivery-agent/dashboard");
+      } else {
+        router.replace("/dashboard");
       }
-
-      router.replace(returnUrl);
     },
     onError: (error) => {
       const errorMessage = handleApiError(error);

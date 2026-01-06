@@ -1002,19 +1002,56 @@ export default function ProductUpdate({ params }: ProductUpdateProps) {
 
   const removeImageById = async (imageId: number) => {
     try {
-      await productService.deleteProductImage(productId, imageId);
-      setExistingImages((prev) =>
-        prev.filter((img) => img.imageId !== imageId)
-      );
-      toast({
-        title: "Image Removed",
-        description: "Image has been removed from the product",
-      });
-    } catch (error) {
+      // Find the image to check if it's a newly uploaded one (not yet saved to DB)
+      const imageToRemove = existingImages.find((img) => img.imageId === imageId);
+      
+      // Check if this is a newly uploaded image (has a 'file' property)
+      // Newly uploaded images are only in frontend state and haven't been saved to DB yet
+      const isNewlyUploaded = imageToRemove && imageToRemove.file;
+      
+      if (isNewlyUploaded) {
+        // For newly uploaded images, just remove from state without calling backend
+        console.log("Removing newly uploaded image (not yet saved to DB):", imageId);
+        setExistingImages((prev) =>
+          prev.filter((img) => img.imageId !== imageId)
+        );
+        toast({
+          title: "Image Removed",
+          description: "Image has been removed from the product",
+        });
+      } else {
+        // For existing images from DB, call backend API to delete
+        console.log("Removing existing image from DB:", imageId);
+        await productService.deleteProductImage(productId, imageId);
+        setExistingImages((prev) =>
+          prev.filter((img) => img.imageId !== imageId)
+        );
+        toast({
+          title: "Image Removed",
+          description: "Image has been removed from the product",
+        });
+      }
+    } catch (error: any) {
       console.error("Error removing image:", error);
+      
+      // If it's a NOT_FOUND error and the image has a file property, 
+      // it means it was a newly uploaded image that we should just remove from state
+      const imageToRemove = existingImages.find((img) => img.imageId === imageId);
+      if (error.response?.data?.errorCode === "NOT_FOUND" && imageToRemove?.file) {
+        console.log("Image not found in DB but has file property, removing from state:", imageId);
+        setExistingImages((prev) =>
+          prev.filter((img) => img.imageId !== imageId)
+        );
+        toast({
+          title: "Image Removed",
+          description: "Image has been removed from the product",
+        });
+        return;
+      }
+      
       toast({
         title: "Error",
-        description: "Failed to remove image",
+        description: error.response?.data?.message || "Failed to remove image",
         variant: "destructive",
       });
     }
@@ -1022,19 +1059,56 @@ export default function ProductUpdate({ params }: ProductUpdateProps) {
 
   const removeVideoById = async (videoId: number) => {
     try {
-      await productService.deleteProductVideo(productId, videoId);
-      setExistingVideos((prev) =>
-        prev.filter((video) => video.videoId !== videoId)
-      );
-      toast({
-        title: "Video Removed",
-        description: "Video has been removed from the product",
-      });
-    } catch (error) {
+      // Find the video to check if it's a newly uploaded one (not yet saved to DB)
+      const videoToRemove = existingVideos.find((video) => video.videoId === videoId);
+      
+      // Check if this is a newly uploaded video (has a 'file' property)
+      // Newly uploaded videos are only in frontend state and haven't been saved to DB yet
+      const isNewlyUploaded = videoToRemove && videoToRemove.file;
+      
+      if (isNewlyUploaded) {
+        // For newly uploaded videos, just remove from state without calling backend
+        console.log("Removing newly uploaded video (not yet saved to DB):", videoId);
+        setExistingVideos((prev) =>
+          prev.filter((video) => video.videoId !== videoId)
+        );
+        toast({
+          title: "Video Removed",
+          description: "Video has been removed from the product",
+        });
+      } else {
+        // For existing videos from DB, call backend API to delete
+        console.log("Removing existing video from DB:", videoId);
+        await productService.deleteProductVideo(productId, videoId);
+        setExistingVideos((prev) =>
+          prev.filter((video) => video.videoId !== videoId)
+        );
+        toast({
+          title: "Video Removed",
+          description: "Video has been removed from the product",
+        });
+      }
+    } catch (error: any) {
       console.error("Error removing video:", error);
+      
+      // If it's a NOT_FOUND error and the video has a file property, 
+      // it means it was a newly uploaded video that we should just remove from state
+      const videoToRemove = existingVideos.find((video) => video.videoId === videoId);
+      if (error.response?.data?.errorCode === "NOT_FOUND" && videoToRemove?.file) {
+        console.log("Video not found in DB but has file property, removing from state:", videoId);
+        setExistingVideos((prev) =>
+          prev.filter((video) => video.videoId !== videoId)
+        );
+        toast({
+          title: "Video Removed",
+          description: "Video has been removed from the product",
+        });
+        return;
+      }
+      
       toast({
         title: "Error",
-        description: "Failed to remove video",
+        description: error.response?.data?.message || "Failed to remove video",
         variant: "destructive",
       });
     }
@@ -1598,6 +1672,48 @@ export default function ProductUpdate({ params }: ProductUpdateProps) {
     imageId: number
   ) => {
     try {
+      // Find the variant and image to check if it's a newly uploaded one
+      const variant = productVariants.find((v) => v.variantId === variantId) ||
+                      variants.find((v) => v.variantId === variantId);
+      const imageToRemove = variant?.images?.find((img: any) => img.imageId === imageId);
+      
+      // Check if this is a newly uploaded image (has a 'file' property)
+      const isNewlyUploaded = imageToRemove && imageToRemove.file;
+      
+      if (isNewlyUploaded) {
+        // For newly uploaded images, just remove from state without calling backend
+        console.log("Removing newly uploaded variant image (not yet saved to DB):", imageId);
+        setProductVariants((prev) =>
+          prev.map((v) =>
+            v.variantId === variantId
+              ? {
+                  ...v,
+                  images: v.images.filter((img) => img.imageId !== imageId),
+                }
+              : v
+          )
+        );
+        setVariants((prev) =>
+          prev.map((v) =>
+            v.variantId === variantId
+              ? {
+                  ...v,
+                  images: v.images.filter(
+                    (img: any) => img.imageId !== imageId
+                  ),
+                }
+              : v
+          )
+        );
+        toast({
+          title: "Image Removed",
+          description: "Variant image has been removed",
+        });
+        return;
+      }
+      
+      // For existing images from DB, call backend API to delete
+      console.log("Removing existing variant image from DB:", imageId);
       await productService.deleteVariantImage(productId, variantId, imageId);
 
       setProductVariants((prev) =>
@@ -1627,11 +1743,49 @@ export default function ProductUpdate({ params }: ProductUpdateProps) {
         title: "Image Deleted",
         description: "Image has been successfully deleted",
       });
-    } catch (error) {
-      console.error("Error deleting image:", error);
+    } catch (error: any) {
+      console.error("Error deleting variant image:", error);
+      
+      // If it's a NOT_FOUND error and the image has a file property, 
+      // it means it was a newly uploaded image that we should just remove from state
+      const variant = productVariants.find((v) => v.variantId === variantId) ||
+                      variants.find((v) => v.variantId === variantId);
+      const imageToRemove = variant?.images?.find((img: any) => img.imageId === imageId);
+      
+      if (error.response?.data?.errorCode === "NOT_FOUND" && imageToRemove?.file) {
+        console.log("Variant image not found in DB but has file property, removing from state:", imageId);
+        setProductVariants((prev) =>
+          prev.map((v) =>
+            v.variantId === variantId
+              ? {
+                  ...v,
+                  images: v.images.filter((img) => img.imageId !== imageId),
+                }
+              : v
+          )
+        );
+        setVariants((prev) =>
+          prev.map((v) =>
+            v.variantId === variantId
+              ? {
+                  ...v,
+                  images: v.images.filter(
+                    (img: any) => img.imageId !== imageId
+                  ),
+                }
+              : v
+          )
+        );
+        toast({
+          title: "Image Removed",
+          description: "Variant image has been removed",
+        });
+        return;
+      }
+      
       toast({
         title: "Delete Failed",
-        description: "Failed to delete image. Please try again.",
+        description: error.response?.data?.message || "Failed to delete image. Please try again.",
         variant: "destructive",
       });
     }

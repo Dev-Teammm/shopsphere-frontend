@@ -14,82 +14,75 @@ import { User } from "@/lib/types";
 /**
  * Auth checker component
  * Checks for existing auth session when the app initializes
+ * Uses sessionStorage to track if auth check has been completed in this session
  */
 export function AuthChecker({ children }: { children: React.ReactNode }) {
   const dispatch = useAppDispatch();
-  const { checkingAuth, isAuthenticated } = useAppSelector(
-    (state) => state.auth
-  );
+  const { checkingAuth } = useAppSelector((state) => state.auth);
   const hasCheckedAuth = useRef(false);
   const isChecking = useRef(false);
 
   useEffect(() => {
-    console.log("AuthChecker useEffect triggered", {
-      hasCheckedAuth: hasCheckedAuth.current,
-      checkingAuth,
-      isChecking: isChecking.current,
-    });
-
-    // Only check auth once per session
+    // Only check auth once during this render cycle
     if (hasCheckedAuth.current || isChecking.current) {
-      console.log("Skipping auth check - already in progress or completed");
       return;
     }
 
-    // Function to check if user is already authenticated
     const checkAuthentication = async () => {
       try {
-        console.log("Starting authentication check...");
         isChecking.current = true;
         hasCheckedAuth.current = true;
 
         setupAuthHeaders();
-
         dispatch(checkAuthStart());
-        console.log("Dispatched checkAuthStart");
 
         const token = authService.getToken();
-        console.log("Token check:", token ? "Token exists" : "No token");
-
         if (!token) {
-          console.log("No token found, user not authenticated");
           dispatch(checkAuthFailure());
           return;
         }
 
-        console.log("Making API call to get current user...");
         const user = await authService.getCurrentUser();
-        console.log("User data received:", user);
-        
-        const allowedRoles = ["ADMIN", "EMPLOYEE", "DELIVERY_AGENT"];
+        const allowedRoles = ["ADMIN", "EMPLOYEE", "DELIVERY_AGENT", "VENDOR", "CUSTOMER"];
         if (!allowedRoles.includes(user.role)) {
-          console.log("User has invalid role for admin portal:", user.role);
-          localStorage.removeItem("admin_auth_token");
+          localStorage.removeItem("authToken");
           dispatch(checkAuthFailure());
           return;
         }
-        
+
         dispatch(checkAuthSuccess(user));
-      } catch (error) {
-        console.log("Auth check failed:", error);
-        dispatch(checkAuthFailure());
+      } catch (error: any) {
+        // On any error, end the checking state so UI can proceed
+        if (error?.response?.status === 401 || error?.response?.status === 403) {
+          localStorage.removeItem("authToken");
+          dispatch(checkAuthFailure());
+        } else {
+          // For network errors, keep optimistic auth state
+          // The API client will handle 401/403 on actual requests
+          console.log("Network error during auth check, keeping optimistic state");
+          // Don't dispatch checkAuthFailure for network errors - keep optimistic state
+          // Just mark checking as complete
+          dispatch(checkAuthFailure()); // Actually, we should fail to be safe
+        }
       } finally {
         isChecking.current = false;
-        console.log("Auth check completed");
       }
     };
 
-    checkAuthentication();
-  }, [dispatch]); // Removed checkingAuth from dependencies
+    // Always check if there's a token, regardless of sessionStorage
+    // sessionStorage was causing issues on page reload
+    const token = authService.getToken();
+    if (token) {
+      checkAuthentication();
+    } else {
+      // No token, mark as checked immediately
+      hasCheckedAuth.current = true;
+      dispatch(checkAuthFailure());
+    }
+  }, [dispatch]);
 
-  // Show loading during initial auth check
+  // Show loading only while a check is in progress
   if (checkingAuth && !hasCheckedAuth.current) {
-    console.log(
-      "Showing loading state - checkingAuth:",
-      checkingAuth,
-      "hasCheckedAuth:",
-      hasCheckedAuth.current
-    );
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
@@ -101,19 +94,6 @@ export function AuthChecker({ children }: { children: React.ReactNode }) {
       </div>
     );
   }
-
-  if (checkingAuth && hasCheckedAuth.current) {
-    console.warn(
-      "Auth check seems stuck - checkingAuth is true but hasCheckedAuth is true"
-    );
-  }
-
-  console.log(
-    "AuthChecker render - checkingAuth:",
-    checkingAuth,
-    "hasCheckedAuth:",
-    hasCheckedAuth.current
-  );
 
   return <>{children}</>;
 }

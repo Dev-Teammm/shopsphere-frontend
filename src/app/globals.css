@@ -2,9 +2,10 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Custom global styles */
-body {
-  font-family: poppins, sans-serif;
+
+
+* {
+  font-family: "Montserrat", sans-serif;
 }
 @layer base {
   :root {

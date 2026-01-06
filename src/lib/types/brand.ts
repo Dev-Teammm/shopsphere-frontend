@@ -18,6 +18,7 @@ export interface CreateBrandRequest {
   websiteUrl?: string;
   isActive?: boolean;
   isFeatured?: boolean;
+  shopId?: string;
 }
 
 export interface UpdateBrandRequest {

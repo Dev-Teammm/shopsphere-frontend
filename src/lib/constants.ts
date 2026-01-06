@@ -109,6 +109,12 @@ export const API_ENDPOINTS = {
     AGENTS: `/delivery-groups/agents`,
     BY_ORDER: (orderId: number) => `/delivery-groups/order/${orderId}`,
   },
+  SHOPS: {
+    BASE: `/shops`,
+    BY_ID: (id: string) => `/shops/${id}`,
+    MY_SHOPS: `/shops/my-shops`,
+    USER_SHOPS: `/shops/user-shops`,
+  },
 };
 
 // User roles - must match backend UserRole enum exactly
@@ -117,4 +123,5 @@ export enum UserRole {
   ADMIN = "ADMIN",
   EMPLOYEE = "EMPLOYEE",
   DELIVERY_AGENT = "DELIVERY_AGENT",
+  VENDOR = "VENDOR",
 }
