@@ -125,11 +125,7 @@ export default function OrdersPage() {
   );
 
   // Fetch shop data to get shopId
-  const {
-    data: shopData,
-    isLoading: shopLoading,
-    error: shopError,
-  } = useQuery({
+  const { data: shopData, isLoading: shopLoading, error: shopError } = useQuery({
     queryKey: ["shop", shopSlug],
     queryFn: () => shopService.getShopBySlug(shopSlug!),
     enabled: !!shopSlug,
@@ -157,7 +153,7 @@ export default function OrdersPage() {
       // Wait for shopId to be available
       return;
     }
-
+    
     const timer = setTimeout(() => {
       if (
         searchTerm.trim() ||
@@ -247,12 +243,8 @@ export default function OrdersPage() {
       console.error("Error fetching orders:", error);
       // Handle shop-related errors
       if (error.response?.status === 403 || error.response?.status === 400) {
-        const errorMessage =
-          error.response?.data?.message || "Access denied to this shop";
-        if (
-          errorMessage.toLowerCase().includes("shop") ||
-          errorMessage.toLowerCase().includes("authorized")
-        ) {
+        const errorMessage = error.response?.data?.message || "Access denied to this shop";
+        if (errorMessage.toLowerCase().includes("shop") || errorMessage.toLowerCase().includes("authorized")) {
           toast.error("You don't have access to this shop's orders");
           setTimeout(() => {
             router.push("/shops");
@@ -387,15 +379,11 @@ export default function OrdersPage() {
         return "secondary";
       case OrderStatus.PROCESSING:
         return "default";
-      case OrderStatus.READY_FOR_PICKUP:
-        return "outline";
       case OrderStatus.SHIPPED:
         return "outline";
       case OrderStatus.DELIVERED:
         return "default";
       case OrderStatus.CANCELLED:
-        return "destructive";
-      case OrderStatus.RETURNED:
         return "destructive";
       default:
         return "secondary";
@@ -421,9 +409,7 @@ export default function OrdersPage() {
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-sm text-muted-foreground">
-            Loading shop information...
-          </p>
+          <p className="text-sm text-muted-foreground">Loading shop information...</p>
         </div>
       </div>
     );
@@ -435,14 +421,9 @@ export default function OrdersPage() {
       <div className="flex flex-col items-center justify-center min-h-screen text-center gap-2">
         <h2 className="text-2xl font-semibold">Shop not found</h2>
         <p className="text-muted-foreground">
-          The shop you're looking for doesn't exist or you don't have access to
-          it.
+          The shop you're looking for doesn't exist or you don't have access to it.
         </p>
-        <Button
-          onClick={() => router.push("/shops")}
-          variant="outline"
-          className="mt-4"
-        >
+        <Button onClick={() => router.push("/shops")} variant="outline" className="mt-4">
           Return to Shops
         </Button>
       </div>
@@ -557,9 +538,6 @@ export default function OrdersPage() {
                       <SelectItem value={OrderStatus.PROCESSING}>
                         {OrderStatus.PROCESSING}
                       </SelectItem>
-                      <SelectItem value={OrderStatus.READY_FOR_PICKUP}>
-                        READY FOR PICKUP
-                      </SelectItem>
                       <SelectItem value={OrderStatus.SHIPPED}>
                         {OrderStatus.SHIPPED}
                       </SelectItem>
@@ -568,9 +546,6 @@ export default function OrdersPage() {
                       </SelectItem>
                       <SelectItem value={OrderStatus.CANCELLED}>
                         {OrderStatus.CANCELLED}
-                      </SelectItem>
-                      <SelectItem value={OrderStatus.RETURNED}>
-                        {OrderStatus.RETURNED}
                       </SelectItem>
                     </SelectContent>
                   </Select>
@@ -717,9 +692,6 @@ export default function OrdersPage() {
                       <SelectItem value={OrderStatus.PROCESSING}>
                         {OrderStatus.PROCESSING}
                       </SelectItem>
-                      <SelectItem value={OrderStatus.READY_FOR_PICKUP}>
-                        READY FOR PICKUP
-                      </SelectItem>
                       <SelectItem value={OrderStatus.SHIPPED}>
                         {OrderStatus.SHIPPED}
                       </SelectItem>
@@ -728,9 +700,6 @@ export default function OrdersPage() {
                       </SelectItem>
                       <SelectItem value={OrderStatus.CANCELLED}>
                         {OrderStatus.CANCELLED}
-                      </SelectItem>
-                      <SelectItem value={OrderStatus.RETURNED}>
-                        {OrderStatus.RETURNED}
                       </SelectItem>
                     </SelectContent>
                   </Select>

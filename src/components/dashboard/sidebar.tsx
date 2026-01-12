@@ -35,9 +35,7 @@ import { usePendingReturnsCount } from "@/hooks/use-pending-returns";
 import { useAppDispatch } from "@/lib/redux/hooks";
 import { logout } from "@/lib/redux/auth-slice";
 import { authService } from "@/lib/services/auth-service";
-import { shopService } from "@/lib/services/shop-service";
 import { toast } from "sonner";
-import { useQuery } from "@tanstack/react-query";
 
 interface SidebarProps {
   className?: string;
@@ -51,22 +49,9 @@ export function Sidebar({ className }: SidebarProps) {
   const searchParams = useSearchParams();
   const shopSlug = searchParams.get("shopSlug");
   const dispatch = useAppDispatch();
-
-  // Fetch shop data to get shopId
-  const { data: shopData } = useQuery({
-    queryKey: ["shop", shopSlug],
-    queryFn: () => shopService.getShopBySlug(shopSlug!),
-    enabled: !!shopSlug,
-  });
-
-  const shopId = shopData?.shopId;
-
-  const { data: pendingAppealsCount, isLoading: isLoadingAppeals } =
-    usePendingAppealsCount();
-  const { data: pendingOrdersCount, isLoading: isLoadingOrders } =
-    usePendingOrdersCount(shopId);
-  const { data: pendingReturnsCount, isLoading: isLoadingReturns } =
-    usePendingReturnsCount();
+  const { data: pendingAppealsCount, isLoading: isLoadingAppeals } = usePendingAppealsCount();
+  const { data: pendingOrdersCount, isLoading: isLoadingOrders } = usePendingOrdersCount();
+  const { data: pendingReturnsCount, isLoading: isLoadingReturns } = usePendingReturnsCount();
 
   // Helper function to append shopSlug to href if it exists
   const getHrefWithShopSlug = (href: string): string => {
@@ -84,14 +69,14 @@ export function Sidebar({ className }: SidebarProps) {
   const handleLogout = async () => {
     try {
       setIsLoggingOut(true);
-
+      
       // Call the auth service logout method
       await authService.logout();
-
+      
       dispatch(logout());
-
+      
       toast.success("Logged out successfully");
-
+      
       router.push("/auth/login");
     } catch (error) {
       console.error("Logout error:", error);
@@ -311,8 +296,8 @@ function SidebarItemWithBadge({
         <>
           <span className="flex-1">{label}</span>
           {!isLoading && badgeCount !== undefined && badgeCount > 0 && (
-            <Badge
-              variant="secondary"
+            <Badge 
+              variant="secondary" 
               className="ml-2 bg-red-500 text-white text-xs px-2 py-0.5 min-w-[20px] h-5 flex items-center justify-center"
             >
               {badgeCount > 99 ? "99+" : badgeCount}
@@ -327,8 +312,8 @@ function SidebarItemWithBadge({
         <>
           <span className="sr-only">{label}</span>
           {!isLoading && badgeCount !== undefined && badgeCount > 0 && (
-            <Badge
-              variant="secondary"
+            <Badge 
+              variant="secondary" 
               className="absolute -top-1 -right-1 bg-red-500 text-white text-xs px-1.5 py-0.5 min-w-[18px] h-4 flex items-center justify-center text-[10px]"
             >
               {badgeCount > 9 ? "9+" : badgeCount}
@@ -367,19 +352,12 @@ function LogoutButton({
       )}
     >
       {isLoading ? (
-        <div
-          className={cn(
-            "h-5 w-5 animate-spin rounded-full border-2 border-current border-t-transparent",
-            collapsed ? "mr-0" : "mr-2"
-          )}
-        />
+        <div className={cn("h-5 w-5 animate-spin rounded-full border-2 border-current border-t-transparent", collapsed ? "mr-0" : "mr-2")} />
       ) : (
         <Icon className={cn("h-5 w-5", collapsed ? "mr-0" : "mr-2")} />
       )}
       {!collapsed && <span>{isLoading ? "Logging out..." : label}</span>}
-      {collapsed && (
-        <span className="sr-only">{isLoading ? "Logging out..." : label}</span>
-      )}
+      {collapsed && <span className="sr-only">{isLoading ? "Logging out..." : label}</span>}
     </button>
   );
 }

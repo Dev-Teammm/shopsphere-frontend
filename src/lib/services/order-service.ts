@@ -61,12 +61,8 @@ class OrderService {
     } catch (error: any) {
       // Handle shop-related errors
       if (error.response?.status === 403 || error.response?.status === 400) {
-        const errorMessage =
-          error.response?.data?.message || "Access denied to this shop";
-        if (
-          errorMessage.toLowerCase().includes("shop") ||
-          errorMessage.toLowerCase().includes("authorized")
-        ) {
+        const errorMessage = error.response?.data?.message || "Access denied to this shop";
+        if (errorMessage.toLowerCase().includes("shop") || errorMessage.toLowerCase().includes("authorized")) {
           throw new Error(errorMessage);
         }
       }
@@ -146,23 +142,11 @@ class OrderService {
 
   /**
    * Get order by ID for admin
-   * @param orderId The order ID
-   * @param shopId Optional shop ID for shop-specific view
-   * @param shopSlug Optional shop slug for shop-specific view
    */
-  async getOrderById(
-    orderId: string,
-    shopId?: string,
-    shopSlug?: string
-  ): Promise<AdminOrderDTO> {
+  async getOrderById(orderId: string): Promise<AdminOrderDTO> {
     try {
-      const params: any = {};
-      if (shopId) params.shopId = shopId;
-      if (shopSlug) params.shopSlug = shopSlug;
-
       const response = await apiClient.get<ApiResponse<AdminOrderDTO>>(
-        API_ENDPOINTS.ADMIN_ORDERS.BY_ID(orderId),
-        { params }
+        API_ENDPOINTS.ADMIN_ORDERS.BY_ID(orderId)
       );
       return response.data.data;
     } catch (error) {
@@ -170,6 +154,8 @@ class OrderService {
       throw error;
     }
   }
+
+
 
   /**
    * Update order status (admin only)
@@ -219,14 +205,28 @@ class OrderService {
   }
 
   /**
-   * Get pending orders count
-   * @param shopId Shop UUID (required)
+   * Verify delivery by pickup token (delivery agent only)
    */
-  async getPendingOrdersCount(shopId: string): Promise<number> {
+  async verifyDelivery(pickupToken: string): Promise<any> {
+    try {
+      const response = await apiClient.post<ApiResponse<any>>(
+        `/orders/delivery/verify/${pickupToken}`,
+        {}
+      );
+      return response.data;
+    } catch (error) {
+      console.error("Error verifying delivery:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get pending orders count
+   */
+  async getPendingOrdersCount(): Promise<number> {
     try {
       const response = await apiClient.get<{ success: boolean; count: number }>(
-        API_ENDPOINTS.ADMIN_ORDERS.COUNT_PENDING,
-        { params: { shopId } }
+        API_ENDPOINTS.ADMIN_ORDERS.COUNT_PENDING
       );
       return response.data.count || 0;
     } catch (error) {
