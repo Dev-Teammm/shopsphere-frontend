@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowLeft,
   Calendar,
@@ -60,9 +60,12 @@ import { TruncatedText } from "@/components/ui/truncated-text";
 
 export default function OrderDetailsPage() {
   const params = useParams();
+  const searchParams = useSearchParams();
   const router = useRouter();
   const [order, setOrder] = useState<AdminOrderDTO | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // Status update state
   const [statusUpdateOpen, setStatusUpdateOpen] = useState(false);
   const [newStatus, setNewStatus] = useState<string>("");
   const [updating, setUpdating] = useState(false);
@@ -84,12 +87,18 @@ export default function OrderDetailsPage() {
   const [loadingReturns, setLoadingReturns] = useState(false);
 
   const orderId = params.id as string;
+  const shopSlug = searchParams.get("shopSlug");
 
   useEffect(() => {
     const fetchOrder = async () => {
       try {
         setLoading(true);
-        const orderData = await orderService.getOrderById(orderId);
+        // Pass shopSlug to fetch shop-specific order details
+        const orderData = await orderService.getOrderById(
+          orderId,
+          undefined,
+          shopSlug || undefined
+        );
         setOrder(orderData);
       } catch (error) {
         console.error("Error fetching order:", error);
@@ -102,7 +111,7 @@ export default function OrderDetailsPage() {
     if (orderId) {
       fetchOrder();
     }
-  }, [orderId]);
+  }, [orderId, shopSlug]);
 
   // Fetch returns associated with this order by order number
   useEffect(() => {
@@ -360,81 +369,81 @@ export default function OrderDetailsPage() {
         </div>
       </div>
 
-        <div className="grid gap-6 lg:grid-cols-3">
-          {/* Main Content */}
-          <div className="lg:col-span-2 space-y-6">
-            {/* Order Information */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Package className="h-5 w-5" />
-                  Order Information
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-sm font-medium text-muted-foreground">
-                      Order Number
-                    </label>
-                    <div className="mt-1">
-                      <TruncatedText
-                        text={order.orderNumber}
-                        maxLength={20}
-                        className="font-medium"
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-muted-foreground">
-                      Customer
-                    </label>
-                    <div className="mt-1">
-                      {order.customerName ? (
-                        <div>
-                          <p className="font-medium">{order.customerName}</p>
-                          {order.customerEmail && (
-                            <p className="text-sm text-muted-foreground">
-                              {order.customerEmail}
-                            </p>
-                          )}
-                          {order.customerPhone && (
-                            <p className="text-sm text-muted-foreground">
-                              {order.customerPhone}
-                            </p>
-                          )}
-                        </div>
-                      ) : (
-                        <TruncatedText
-                          text={order.userId}
-                          maxLength={16}
-                          className="font-medium"
-                        />
-                      )}
-                    </div>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-muted-foreground">
-                      Created At
-                    </label>
-                    <p className="font-medium">
-                      {format(new Date(order.createdAt), "PPP 'at' p")}
-                    </p>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-muted-foreground">
-                      Last Updated
-                    </label>
-                    <p className="font-medium">
-                      {format(new Date(order.updatedAt), "PPP 'at' p")}
-                    </p>
+      <div className="grid gap-6 lg:grid-cols-3">
+        {/* Main Content */}
+        <div className="lg:col-span-2 space-y-6">
+          {/* Order Information */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Package className="h-5 w-5" />
+                Order Information
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium text-muted-foreground">
+                    Order Number
+                  </label>
+                  <div className="mt-1">
+                    <TruncatedText
+                      text={order.orderNumber}
+                      maxLength={20}
+                      className="font-medium"
+                    />
                   </div>
                 </div>
-              </CardContent>
-            </Card>
+                <div>
+                  <label className="text-sm font-medium text-muted-foreground">
+                    Customer
+                  </label>
+                  <div className="mt-1">
+                    {order.customerName ? (
+                      <div>
+                        <p className="font-medium">{order.customerName}</p>
+                        {order.customerEmail && (
+                          <p className="text-sm text-muted-foreground">
+                            {order.customerEmail}
+                          </p>
+                        )}
+                        {order.customerPhone && (
+                          <p className="text-sm text-muted-foreground">
+                            {order.customerPhone}
+                          </p>
+                        )}
+                      </div>
+                    ) : (
+                      <TruncatedText
+                        text={order.userId}
+                        maxLength={16}
+                        className="font-medium"
+                      />
+                    )}
+                  </div>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-muted-foreground">
+                    Created At
+                  </label>
+                  <p className="font-medium">
+                    {format(new Date(order.createdAt), "PPP 'at' p")}
+                  </p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-muted-foreground">
+                    Last Updated
+                  </label>
+                  <p className="font-medium">
+                    {format(new Date(order.updatedAt), "PPP 'at' p")}
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
 
-            {/* Associated Return Requests - Only show if there are returns */}
-            {orderReturns.length > 0 && (
+          {/* Associated Return Requests - Only show if there are returns */}
+          {orderReturns.length > 0 && (
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -442,7 +451,9 @@ export default function OrderDetailsPage() {
                   Associated Return Requests
                 </CardTitle>
                 <CardDescription>
-                  {loadingReturns ? "Loading..." : `${orderReturns.length} return request(s)`}
+                  {loadingReturns
+                    ? "Loading..."
+                    : `${orderReturns.length} return request(s)`}
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -483,7 +494,8 @@ export default function OrderDetailsPage() {
                           </div>
                           <div className="text-xs text-muted-foreground space-y-1">
                             <p>
-                              Submitted: {format(new Date(returnReq.submittedAt), "PPP")}
+                              Submitted:{" "}
+                              {format(new Date(returnReq.submittedAt), "PPP")}
                             </p>
                             <p>{returnReq.returnItems?.length || 0} item(s)</p>
                           </div>
@@ -491,7 +503,9 @@ export default function OrderDetailsPage() {
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => router.push(`/dashboard/returns/${returnReq.id}`)}
+                          onClick={() =>
+                            router.push(`/dashboard/returns/${returnReq.id}`)
+                          }
                         >
                           <Eye className="h-4 w-4 mr-2" />
                           View Details
@@ -502,16 +516,16 @@ export default function OrderDetailsPage() {
                 )}
               </CardContent>
             </Card>
-            )}
+          )}
 
-            {/* Order Items */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Order Items</CardTitle>
-                <CardDescription>
-                  {order.items?.length || 0} item(s) in this order
-                </CardDescription>
-              </CardHeader>
+          {/* Order Items */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Order Items</CardTitle>
+              <CardDescription>
+                {order.items?.length || 0} item(s) in this order
+              </CardDescription>
+            </CardHeader>
             <CardContent>
               {order.items && order.items.length > 0 ? (
                 <div className="space-y-4">
@@ -796,34 +810,34 @@ export default function OrderDetailsPage() {
                   <span>-${order.discount.toFixed(2)}</span>
                 </div>
               )}
-              {(order.paymentInfo?.paymentMethod === "POINTS" || 
-                order.paymentInfo?.paymentMethod === "HYBRID") && 
-                order.paymentInfo?.pointsUsed !== undefined && 
+              {(order.paymentInfo?.paymentMethod === "POINTS" ||
+                order.paymentInfo?.paymentMethod === "HYBRID") &&
+                order.paymentInfo?.pointsUsed !== undefined &&
                 order.paymentInfo?.pointsUsed > 0 && (
-                <>
-                  <div className="pt-3 border-t">
-                    <label className="text-sm font-medium text-muted-foreground">
-                      Points Used
-                    </label>
-                    <p className="text-sm font-bold text-yellow-600">
-                      {order.paymentInfo?.pointsUsed} points
-                    </p>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-muted-foreground">
-                      Points Value
-                    </label>
-                    <p className="text-sm font-bold text-green-600">
-                      ${order.paymentInfo.pointsValue?.toFixed(2) || "0.00"}
-                    </p>
-                  </div>
-                  {order.paymentInfo.paymentMethod === "HYBRID" && (
-                    <div className="text-xs text-muted-foreground italic">
-                      Combined points and card payment
+                  <>
+                    <div className="pt-3 border-t">
+                      <label className="text-sm font-medium text-muted-foreground">
+                        Points Used
+                      </label>
+                      <p className="text-sm font-bold text-yellow-600">
+                        {order.paymentInfo?.pointsUsed} points
+                      </p>
                     </div>
-                  )}
-                </>
-              )}
+                    <div>
+                      <label className="text-sm font-medium text-muted-foreground">
+                        Points Value
+                      </label>
+                      <p className="text-sm font-bold text-green-600">
+                        ${order.paymentInfo.pointsValue?.toFixed(2) || "0.00"}
+                      </p>
+                    </div>
+                    {order.paymentInfo.paymentMethod === "HYBRID" && (
+                      <div className="text-xs text-muted-foreground italic">
+                        Combined points and card payment
+                      </div>
+                    )}
+                  </>
+                )}
               <Separator />
               <div className="flex justify-between font-medium">
                 <span>Total</span>
@@ -1096,7 +1110,6 @@ export default function OrderDetailsPage() {
                   </a>
                 </div>
               )}
-              
             </CardContent>
           </Card>
 

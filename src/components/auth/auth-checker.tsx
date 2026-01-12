@@ -49,13 +49,13 @@ export function AuthChecker({ children }: { children: React.ReactNode }) {
           dispatch(checkAuthFailure());
           return;
         }
-
+        
         dispatch(checkAuthSuccess(user));
       } catch (error: any) {
         // On any error, end the checking state so UI can proceed
         if (error?.response?.status === 401 || error?.response?.status === 403) {
           localStorage.removeItem("authToken");
-          dispatch(checkAuthFailure());
+        dispatch(checkAuthFailure());
         } else {
           // For network errors, keep optimistic auth state
           // The API client will handle 401/403 on actual requests
@@ -73,7 +73,7 @@ export function AuthChecker({ children }: { children: React.ReactNode }) {
     // sessionStorage was causing issues on page reload
     const token = authService.getToken();
     if (token) {
-      checkAuthentication();
+    checkAuthentication();
     } else {
       // No token, mark as checked immediately
       hasCheckedAuth.current = true;

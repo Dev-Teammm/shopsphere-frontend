@@ -81,7 +81,7 @@ apiClient.interceptors.response.use(
     }
 
     const status = error.response?.status;
-    const isAuthMeRequest = error.config?.url?.includes("/auth/me");
+      const isAuthMeRequest = error.config?.url?.includes("/auth/me");
     const isAuthRequest = error.config?.url?.includes("/auth/login") || 
                           error.config?.url?.includes("/auth/register");
     const currentPath = window.location.pathname;
@@ -129,7 +129,7 @@ apiClient.interceptors.response.use(
         sessionStorage.removeItem("authChecked");
         delete apiClient.defaults.headers.common["Authorization"];
         delete apiClient.defaults.headers.Authorization;
-        
+
         const returnUrl = window.location.search 
           ? `${currentPath}${window.location.search}`
           : currentPath;

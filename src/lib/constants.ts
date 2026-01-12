@@ -21,8 +21,6 @@ export const API_ENDPOINTS = {
   },
   ORDERS: {
     BASE: `/orders`,
-    CREATE: `/orders/create`,
-    CANCEL: (id: string) => `/orders/${id}/cancel`,
     TRACKING: (id: string) => `/orders/${id}/tracking`,
   },
   ADMIN_ORDERS: {
