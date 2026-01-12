@@ -219,28 +219,14 @@ class OrderService {
   }
 
   /**
-   * Verify delivery by pickup token (delivery agent only)
-   */
-  async verifyDelivery(pickupToken: string): Promise<any> {
-    try {
-      const response = await apiClient.post<ApiResponse<any>>(
-        `/orders/delivery/verify/${pickupToken}`,
-        {}
-      );
-      return response.data;
-    } catch (error) {
-      console.error("Error verifying delivery:", error);
-      throw error;
-    }
-  }
-
-  /**
    * Get pending orders count
+   * @param shopId Shop UUID (required)
    */
-  async getPendingOrdersCount(): Promise<number> {
+  async getPendingOrdersCount(shopId: string): Promise<number> {
     try {
       const response = await apiClient.get<{ success: boolean; count: number }>(
-        API_ENDPOINTS.ADMIN_ORDERS.COUNT_PENDING
+        API_ENDPOINTS.ADMIN_ORDERS.COUNT_PENDING,
+        { params: { shopId } }
       );
       return response.data.count || 0;
     } catch (error) {
