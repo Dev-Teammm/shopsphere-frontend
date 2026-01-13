@@ -125,7 +125,11 @@ export default function OrdersPage() {
   );
 
   // Fetch shop data to get shopId
-  const { data: shopData, isLoading: shopLoading, error: shopError } = useQuery({
+  const {
+    data: shopData,
+    isLoading: shopLoading,
+    error: shopError,
+  } = useQuery({
     queryKey: ["shop", shopSlug],
     queryFn: () => shopService.getShopBySlug(shopSlug!),
     enabled: !!shopSlug,
@@ -153,86 +157,51 @@ export default function OrdersPage() {
       // Wait for shopId to be available
       return;
     }
-    
+
     const timer = setTimeout(() => {
-      if (
-        searchTerm.trim() ||
-        Object.values(filters).some(
-          (value) => value !== "all" && value !== "" && value !== null
-        )
-      ) {
-        setCurrentPage(0); // Reset to first page on search
-        fetchOrders(true);
-      } else if (searchTerm === "") {
-        // If search is cleared, fetch without search
-        setCurrentPage(0);
-        fetchOrders(false);
-      }
+      setCurrentPage(0); // Reset to first page on search/filter change
+      fetchOrders();
     }, 500); // 500ms debounce
 
     return () => clearTimeout(timer);
   }, [searchTerm, shopId, shopSlug]);
 
-  const fetchOrders = async (useSearch: boolean = false) => {
+  const fetchOrders = async () => {
     try {
       setLoading(true);
 
-      // Check if we should use search or regular fetch
-      const hasActiveFilters =
-        Object.values(filters).some(
-          (value) => value !== "all" && value !== "" && value !== null
-        ) || searchTerm.trim() !== "";
+      // Prepare request parameters
+      const params: any = {
+        page: currentPage,
+        size: pageSize,
+        sortBy: "createdAt",
+        sortDirection: "desc",
+        shopId: shopId || undefined,
+      };
 
-      const shouldUseSearch = useSearch || hasActiveFilters;
-
-      let response;
-
-      if (shouldUseSearch) {
-        // Prepare search request
-        const searchRequest: any = {
-          page: currentPage,
-          size: pageSize,
-          sortBy: "createdAt",
-          sortDirection: "desc",
-        };
-
-        // Add search term if present
-        if (searchTerm.trim()) {
-          searchRequest.searchKeyword = searchTerm.trim();
-        }
-
-        // Add filters
-        if (filters.orderStatus !== "all") {
-          searchRequest.orderStatus = filters.orderStatus;
-        }
-        if (filters.paymentStatus !== "all") {
-          searchRequest.paymentStatus = filters.paymentStatus;
-        }
-        if (filters.city.trim()) {
-          searchRequest.city = filters.city.trim();
-        }
-        if (filters.startDate) {
-          searchRequest.startDate = filters.startDate.toISOString();
-        }
-        if (filters.endDate) {
-          searchRequest.endDate = filters.endDate.toISOString();
-        }
-
-        // Add shopId to search request if available
-        if (shopId) {
-          searchRequest.shopId = shopId;
-        }
-        response = await orderService.searchOrders(searchRequest);
-      } else {
-        // Use regular pagination
-        response = await orderService.getAllOrdersPaginated(
-          currentPage,
-          pageSize,
-          "createdAt",
-          "desc",
-          shopId || undefined
-        );
+      // Add search term if present
+      if (searchTerm.trim()) {
+        params.searchKeyword = searchTerm.trim();
       }
+
+      // Add filters
+      if (filters.orderStatus !== "all") {
+        params.orderStatus = filters.orderStatus;
+      }
+      if (filters.paymentStatus !== "all") {
+        params.paymentStatus = filters.paymentStatus;
+      }
+      if (filters.city.trim()) {
+        params.city = filters.city.trim();
+      }
+      if (filters.startDate) {
+        params.startDate = filters.startDate.toISOString();
+      }
+      if (filters.endDate) {
+        params.endDate = filters.endDate.toISOString();
+      }
+
+      const response = await orderService.getAllOrdersPaginated(params);
 
       setOrders(response.data);
       setTotalPages(response.pagination.totalPages);
@@ -243,8 +212,12 @@ export default function OrdersPage() {
       console.error("Error fetching orders:", error);
       // Handle shop-related errors
       if (error.response?.status === 403 || error.response?.status === 400) {
-        const errorMessage = error.response?.data?.message || "Access denied to this shop";
-        if (errorMessage.toLowerCase().includes("shop") || errorMessage.toLowerCase().includes("authorized")) {
+        const errorMessage =
+          error.response?.data?.message || "Access denied to this shop";
+        if (
+          errorMessage.toLowerCase().includes("shop") ||
+          errorMessage.toLowerCase().includes("authorized")
+        ) {
           toast.error("You don't have access to this shop's orders");
           setTimeout(() => {
             router.push("/shops");
@@ -353,9 +326,9 @@ export default function OrdersPage() {
     setFilters((prev) => ({ ...prev, [key]: value }));
   };
 
-  const applyFilters = async () => {
+  const applyFilters = () => {
     setCurrentPage(0); // Reset to first page when applying filters
-    await fetchOrders(true); // Force use search
+    fetchOrders();
     setFiltersOpen(false);
   };
 
@@ -370,7 +343,7 @@ export default function OrdersPage() {
     });
     setSearchTerm("");
     setCurrentPage(0); // Reset to first page
-    fetchOrders(false); // Use regular fetch without filters
+    fetchOrders();
   };
 
   const getStatusBadgeVariant = (status: string) => {
@@ -409,7 +382,9 @@ export default function OrdersPage() {
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-sm text-muted-foreground">Loading shop information...</p>
+          <p className="text-sm text-muted-foreground">
+            Loading shop information...
+          </p>
         </div>
       </div>
     );
@@ -421,9 +396,14 @@ export default function OrdersPage() {
       <div className="flex flex-col items-center justify-center min-h-screen text-center gap-2">
         <h2 className="text-2xl font-semibold">Shop not found</h2>
         <p className="text-muted-foreground">
-          The shop you're looking for doesn't exist or you don't have access to it.
+          The shop you're looking for doesn't exist or you don't have access to
+          it.
         </p>
-        <Button onClick={() => router.push("/shops")} variant="outline" className="mt-4">
+        <Button
+          onClick={() => router.push("/shops")}
+          variant="outline"
+          className="mt-4"
+        >
           Return to Shops
         </Button>
       </div>
@@ -465,16 +445,100 @@ export default function OrdersPage() {
       {/* Search Bar - Always visible */}
       <Card className="border-border/40 shadow-sm">
         <CardContent className="pt-6 pb-6">
-          <div className="relative">
-            <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search by order number, user ID, customer name, email, or phone..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10 border-primary/20 focus-visible:ring-primary"
-            />
+          <div className="flex flex-col gap-4">
+            <div className="relative">
+              <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search by order number, user ID, customer name, email, or phone..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10 border-primary/20 focus-visible:ring-primary"
+              />
+            </div>
+
+            {/* Active Filters Display */}
+            {(Object.values(filters).some(
+              (value) => value !== "all" && value !== "" && value !== null
+            ) ||
+              searchTerm.trim() !== "") && (
+              <div className="flex flex-wrap gap-2 items-center">
+                <span className="text-xs font-medium text-muted-foreground mr-1">
+                  Active Filters:
+                </span>
+
+                {searchTerm.trim() !== "" && (
+                  <Badge variant="secondary" className="gap-1 pr-1.5 h-7">
+                    Search: {searchTerm}
+                    <X
+                      className="h-3 w-3 cursor-pointer hover:text-destructive"
+                      onClick={() => setSearchTerm("")}
+                    />
+                  </Badge>
+                )}
+
+                {filters.orderStatus !== "all" && (
+                  <Badge variant="secondary" className="gap-1 pr-1.5 h-7">
+                    Status: {filters.orderStatus}
+                    <X
+                      className="h-3 w-3 cursor-pointer hover:text-destructive"
+                      onClick={() => handleFilterChange("orderStatus", "all")}
+                    />
+                  </Badge>
+                )}
+
+                {filters.paymentStatus !== "all" && (
+                  <Badge variant="secondary" className="gap-1 pr-1.5 h-7">
+                    Payment: {filters.paymentStatus}
+                    <X
+                      className="h-3 w-3 cursor-pointer hover:text-destructive"
+                      onClick={() => handleFilterChange("paymentStatus", "all")}
+                    />
+                  </Badge>
+                )}
+
+                {filters.city.trim() !== "" && (
+                  <Badge variant="secondary" className="gap-1 pr-1.5 h-7">
+                    City: {filters.city}
+                    <X
+                      className="h-3 w-3 cursor-pointer hover:text-destructive"
+                      onClick={() => handleFilterChange("city", "")}
+                    />
+                  </Badge>
+                )}
+
+                {filters.startDate && (
+                  <Badge variant="secondary" className="gap-1 pr-1.5 h-7">
+                    From: {format(filters.startDate, "MMM d, yyyy")}
+                    <X
+                      className="h-3 w-3 cursor-pointer hover:text-destructive"
+                      onClick={() => handleFilterChange("startDate", null)}
+                    />
+                  </Badge>
+                )}
+
+                {filters.endDate && (
+                  <Badge variant="secondary" className="gap-1 pr-1.5 h-7">
+                    To: {format(filters.endDate, "MMM d, yyyy")}
+                    <X
+                      className="h-3 w-3 cursor-pointer hover:text-destructive"
+                      onClick={() => handleFilterChange("endDate", null)}
+                    />
+                  </Badge>
+                )}
+
+                <Button
+                  variant="ghost"
+                  onClick={clearFilters}
+                  className="h-7 px-2 text-xs text-destructive hover:text-destructive hover:bg-destructive/10"
+                  size="sm"
+                >
+                  Clear All
+                </Button>
+              </div>
+            )}
           </div>
-          <div className="flex justify-between items-center mt-4">
+
+          <div className="flex justify-between items-center mt-4 border-t border-border/40 pt-4">
             <p className="text-sm text-muted-foreground">
               {loading
                 ? "Loading orders..."
@@ -485,19 +549,6 @@ export default function OrdersPage() {
                     currentPage + 1
                   } of ${totalPages})`}
             </p>
-            {Object.values(filters).some(
-              (value) => value !== "all" && value !== "" && value !== null
-            ) && (
-              <Button
-                variant="outline"
-                onClick={clearFilters}
-                className="border-primary/20 hover:bg-primary/5 hover:text-primary"
-                size="sm"
-                disabled={loading}
-              >
-                Clear Filters
-              </Button>
-            )}
           </div>
         </CardContent>
       </Card>
