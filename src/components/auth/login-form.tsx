@@ -66,7 +66,7 @@ export function LoginForm() {
     if (isAuthenticated && !authLoading && user) {
       // If returnUrl is provided and valid, use it
       if (returnUrl && returnUrl !== "/auth" && returnUrl.startsWith("/")) {
-        router.replace(returnUrl);
+      router.replace(returnUrl);
       } else if (
         user.role === UserRole.VENDOR ||
         user.role === UserRole.CUSTOMER ||

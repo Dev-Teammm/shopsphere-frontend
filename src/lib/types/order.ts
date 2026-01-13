@@ -9,7 +9,8 @@ export enum OrderStatus {
   CANCELLED = "CANCELLED",
   REFUNDED = "REFUNDED",
   RETURNED = "RETURNED",
-  READY_FOR_DELIVERY = "READY_FOR_DELIVERY",
+  READY_FOR_DELIVERY = "READY_FOR_DELIVERY", // Backend uses READY_FOR_PICKUP but keeping for safety if used elsewhere
+  READY_FOR_PICKUP = "READY_FOR_PICKUP",
 }
 
 export enum OrderPaymentStatus {

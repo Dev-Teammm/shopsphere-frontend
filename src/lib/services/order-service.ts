@@ -23,15 +23,33 @@ class OrderService {
   }
 
   /**
-   * Get all orders for admin dashboard with pagination
-   * @param shopId Optional shop ID to filter orders by shop
+   * Get all orders for admin dashboard with pagination and filters
    */
   async getAllOrdersPaginated(
-    page: number = 0,
-    size: number = 15,
-    sortBy: string = "createdAt",
-    sortDir: string = "desc",
-    shopId?: string
+    params: {
+      page?: number;
+      size?: number;
+      sortBy?: string;
+      sortDirection?: string;
+      shopId?: string;
+      orderNumber?: string;
+      userId?: string;
+      customerName?: string;
+      customerEmail?: string;
+      customerPhone?: string;
+      orderStatus?: string;
+      paymentStatus?: string;
+      city?: string;
+      state?: string;
+      country?: string;
+      totalMin?: number;
+      totalMax?: number;
+      startDate?: string;
+      endDate?: string;
+      paymentMethod?: string;
+      trackingNumber?: string;
+      searchKeyword?: string;
+    } = {}
   ): Promise<{
     data: AdminOrderDTO[];
     pagination: {
@@ -46,14 +64,19 @@ class OrderService {
     };
   }> {
     try {
-      const params: any = { page, size, sortBy, sortDir };
-      if (shopId) {
-        params.shopId = shopId;
-      }
+      // Clean up params (remove empty/null values)
+      const cleanParams: any = {};
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined && value !== null && value !== "") {
+          cleanParams[key] = value;
+        }
+      });
+
       const response = await apiClient.get<any>(
         API_ENDPOINTS.ADMIN_ORDERS.ALL,
-        { params }
+        { params: cleanParams }
       );
+
       return {
         data: response.data.data,
         pagination: response.data.pagination,
@@ -61,66 +84,16 @@ class OrderService {
     } catch (error: any) {
       // Handle shop-related errors
       if (error.response?.status === 403 || error.response?.status === 400) {
-        const errorMessage = error.response?.data?.message || "Access denied to this shop";
-        if (errorMessage.toLowerCase().includes("shop") || errorMessage.toLowerCase().includes("authorized")) {
+        const errorMessage =
+          error.response?.data?.message || "Access denied to this shop";
+        if (
+          errorMessage.toLowerCase().includes("shop") ||
+          errorMessage.toLowerCase().includes("authorized")
+        ) {
           throw new Error(errorMessage);
         }
       }
       console.error("Error fetching paginated orders:", error);
-      throw error;
-    }
-  }
-
-  /**
-   * Search orders with filters
-   */
-  async searchOrders(searchRequest: {
-    orderNumber?: string;
-    userId?: string;
-    customerName?: string;
-    customerEmail?: string;
-    customerPhone?: string;
-    orderStatus?: string;
-    paymentStatus?: string;
-    city?: string;
-    state?: string;
-    country?: string;
-    totalMin?: number;
-    totalMax?: number;
-    startDate?: string;
-    endDate?: string;
-    paymentMethod?: string;
-    trackingNumber?: string;
-    searchKeyword?: string;
-    shopId?: string;
-    page?: number;
-    size?: number;
-    sortBy?: string;
-    sortDirection?: string;
-  }): Promise<{
-    data: AdminOrderDTO[];
-    pagination: {
-      currentPage: number;
-      totalPages: number;
-      totalElements: number;
-      pageSize: number;
-      hasNext: boolean;
-      hasPrevious: boolean;
-      isFirst: boolean;
-      isLast: boolean;
-    };
-  }> {
-    try {
-      const response = await apiClient.post<any>(
-        API_ENDPOINTS.ADMIN_ORDERS.SEARCH,
-        searchRequest
-      );
-      return {
-        data: response.data.data,
-        pagination: response.data.pagination,
-      };
-    } catch (error) {
-      console.error("Error searching orders:", error);
       throw error;
     }
   }
@@ -154,8 +127,6 @@ class OrderService {
       throw error;
     }
   }
-
-
 
   /**
    * Update order status (admin only)
