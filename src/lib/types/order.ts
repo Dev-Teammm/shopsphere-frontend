@@ -127,6 +127,25 @@ export interface DeliveryGroupInfoDTO {
   status: "READY" | "IN_PROGRESS" | "COMPLETED";
 }
 
+export interface AdminShopOrderDTO {
+  shopOrderId: string;
+  shopOrderCode: string;
+  shopId: string;
+  shopName: string;
+  shopLogo?: string;
+  status: string;
+  items: AdminOrderItemDTO[];
+  subtotal: number;
+  shippingCost: number;
+  discountAmount: number;
+  totalAmount: number;
+  pickupToken?: string;
+  pickupTokenUsed?: boolean;
+  deliveredAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface AdminOrderDTO {
   id: string;
   userId: string;
@@ -137,6 +156,7 @@ export interface AdminOrderDTO {
   status: string;
   paymentStatus: string;
   items: AdminOrderItemDTO[];
+  shopOrders: AdminShopOrderDTO[];
   subtotal: number;
   tax: number;
   shipping: number;

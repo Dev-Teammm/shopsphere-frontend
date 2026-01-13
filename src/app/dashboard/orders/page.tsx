@@ -10,6 +10,8 @@ import {
   X,
   Plus,
   Users,
+  ShoppingBag,
+  DollarSign,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import {
@@ -108,6 +110,7 @@ export default function OrdersPage() {
   // State for API data
   const [loading, setLoading] = useState(true);
   const [orders, setOrders] = useState<AdminOrderDTO[]>([]);
+  const [totalPaidAmount, setTotalPaidAmount] = useState<number>(0);
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(0);
@@ -144,7 +147,7 @@ export default function OrdersPage() {
     }
   }, [shopSlug, router]);
 
-  // Fetch orders from API
+  // Fetch orders when page or shop changes
   useEffect(() => {
     if (shopId || !shopSlug) {
       fetchOrders();
@@ -154,21 +157,27 @@ export default function OrdersPage() {
   // Debounced search effect
   useEffect(() => {
     if (!shopId && shopSlug) {
-      // Wait for shopId to be available
       return;
     }
 
     const timer = setTimeout(() => {
-      setCurrentPage(0); // Reset to first page on search/filter change
+      // Only auto-trigger for search term if filters are not being applied manually
       fetchOrders();
-    }, 500); // 500ms debounce
+    }, 500);
 
     return () => clearTimeout(timer);
-  }, [searchTerm, shopId, shopSlug]);
+  }, [searchTerm, shopId]);
 
-  const fetchOrders = async () => {
+  const fetchOrders = async (
+    overrideFilters?: typeof filters,
+    overrideSearch?: string
+  ) => {
     try {
       setLoading(true);
+
+      const activeFilters = overrideFilters || filters;
+      const activeSearch =
+        overrideSearch !== undefined ? overrideSearch : searchTerm;
 
       // Prepare request parameters
       const params: any = {
@@ -180,30 +189,31 @@ export default function OrdersPage() {
       };
 
       // Add search term if present
-      if (searchTerm.trim()) {
-        params.searchKeyword = searchTerm.trim();
+      if (activeSearch.trim()) {
+        params.searchKeyword = activeSearch.trim();
       }
 
       // Add filters
-      if (filters.orderStatus !== "all") {
-        params.orderStatus = filters.orderStatus;
+      if (activeFilters.orderStatus !== "all") {
+        params.orderStatus = activeFilters.orderStatus;
       }
-      if (filters.paymentStatus !== "all") {
-        params.paymentStatus = filters.paymentStatus;
+      if (activeFilters.paymentStatus !== "all") {
+        params.paymentStatus = activeFilters.paymentStatus;
       }
-      if (filters.city.trim()) {
-        params.city = filters.city.trim();
+      if (activeFilters.city.trim()) {
+        params.city = activeFilters.city.trim();
       }
-      if (filters.startDate) {
-        params.startDate = filters.startDate.toISOString();
+      if (activeFilters.startDate) {
+        params.startDate = activeFilters.startDate.toISOString();
       }
-      if (filters.endDate) {
-        params.endDate = filters.endDate.toISOString();
+      if (activeFilters.endDate) {
+        params.endDate = activeFilters.endDate.toISOString();
       }
 
       const response = await orderService.getAllOrdersPaginated(params);
 
       setOrders(response.data);
+      setTotalPaidAmount(response.totalPaidAmount || 0);
       setTotalPages(response.pagination.totalPages);
       setTotalElements(response.pagination.totalElements);
       setHasNext(response.pagination.hasNext);
@@ -327,23 +337,25 @@ export default function OrdersPage() {
   };
 
   const applyFilters = () => {
-    setCurrentPage(0); // Reset to first page when applying filters
-    fetchOrders();
+    setCurrentPage(0);
+    fetchOrders(filters, searchTerm);
     setFiltersOpen(false);
   };
 
   const clearFilters = () => {
-    setFilters({
+    const freshFilters = {
       orderStatus: "all",
       paymentStatus: "all",
       city: "",
       country: "",
       startDate: null,
       endDate: null,
-    });
+    };
+    setFilters(freshFilters);
     setSearchTerm("");
-    setCurrentPage(0); // Reset to first page
-    fetchOrders();
+    setCurrentPage(0);
+    fetchOrders(freshFilters, "");
+    setFiltersOpen(false);
   };
 
   const getStatusBadgeVariant = (status: string) => {
@@ -1019,8 +1031,8 @@ export default function OrdersPage() {
                             {order.paymentInfo?.paymentStatus || "PENDING"}
                           </Badge>
                         </TableCell>
-                        <TableCell className="font-medium">
-                          ${order.total?.toFixed(2) || "0.00"}
+                        <TableCell className="font-semibold">
+                          {(order.total || 0).toLocaleString()} RWF
                         </TableCell>
                         <TableCell className="hidden lg:table-cell">
                           <div className="text-sm">
