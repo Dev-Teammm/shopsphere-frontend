@@ -57,6 +57,8 @@ import { ReturnRequestDTO } from "@/types/return";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { TruncatedText } from "@/components/ui/truncated-text";
+import { useQuery } from "@tanstack/react-query";
+import { shopService } from "@/lib/services/shop-service";
 
 export default function OrderDetailsPage() {
   const params = useParams();
@@ -89,15 +91,24 @@ export default function OrderDetailsPage() {
   const orderId = params.id as string;
   const shopSlug = searchParams.get("shopSlug");
 
+  // Fetch shop data to get shopId
+  const { data: shopData } = useQuery({
+    queryKey: ["shop", shopSlug],
+    queryFn: () => shopService.getShopBySlug(shopSlug!),
+    enabled: !!shopSlug,
+  });
+
+  const shopId = shopData?.shopId;
+
   useEffect(() => {
     const fetchOrder = async () => {
       try {
         setLoading(true);
-        // Pass shopSlug to fetch shop-specific order details
+        // Pass shopId to fetch shop-specific order details
         const orderData = await orderService.getOrderById(
           orderId,
           undefined,
-          shopSlug || undefined
+          shopId
         );
         setOrder(orderData);
       } catch (error) {
@@ -108,10 +119,10 @@ export default function OrderDetailsPage() {
       }
     };
 
-    if (orderId) {
+    if (orderId && (!shopSlug || shopId)) {
       fetchOrder();
     }
-  }, [orderId, shopSlug]);
+  }, [orderId, shopId, shopSlug]);
 
   // Fetch returns associated with this order by order number
   useEffect(() => {
@@ -145,36 +156,26 @@ export default function OrderDetailsPage() {
   const displayData = useMemo(() => {
     if (!order) return null;
 
-    if (shopSlug && order.shopOrders && order.shopOrders.length > 0) {
-      // Find the specific shop order if possible
-      // The backend filters shopOrders based on shopSlug if provided
-      // If multiple shopOrders exist and no slug matches perfectly, we take the first one
-      const shopOrder =
-        order.shopOrders.find(
-          (so) =>
-            so.shopName.toLowerCase().replace(/\s+/g, "-") ===
-            shopSlug.toLowerCase()
-        ) || order.shopOrders[0];
-
-      return {
-        items: shopOrder.items || [],
-        subtotal: shopOrder.subtotal,
-        shipping: shopOrder.shippingCost,
-        discount: shopOrder.discountAmount,
-        total: shopOrder.totalAmount,
-        status: shopOrder.status,
-        shopOrderCode: shopOrder.shopOrderCode,
-      };
-    }
+    // If shopSlug is present, the items and totals in the order object
+    // should already be filtered by the backend if shopId was passed.
+    // However, if there are multiple shopOrders, we might want the specific one's code.
+    const shopOrder =
+      shopSlug && order.shopOrders && order.shopOrders.length > 0
+        ? order.shopOrders.find(
+            (so) =>
+              so.shopName.toLowerCase().replace(/\s+/g, "-") ===
+              shopSlug.toLowerCase()
+          ) || order.shopOrders[0]
+        : null;
 
     return {
       items: order.items || [],
-      subtotal: order.subtotal,
-      shipping: order.shipping,
-      discount: order.discount,
-      total: order.total,
+      subtotal: order.subtotal || 0,
+      shipping: order.shipping || 0,
+      discount: order.discount || 0,
+      total: order.total || 0,
       status: order.status,
-      shopOrderCode: order.orderNumber,
+      shopOrderCode: shopOrder ? shopOrder.shopOrderCode : order.orderNumber,
     };
   }, [order, shopSlug]);
 
@@ -221,11 +222,6 @@ export default function OrderDetailsPage() {
     } finally {
       setUpdating(false);
     }
-  };
-
-  const openStatusUpdate = () => {
-    setNewStatus(order?.status || "");
-    setStatusUpdateOpen(true);
   };
 
   const openDeliveryModal = async () => {
@@ -399,15 +395,6 @@ export default function OrderDetailsPage() {
               </Badge>
             )}
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={openStatusUpdate}
-            className="gap-2"
-          >
-            <Edit3 className="h-4 w-4" />
-            Update Status
-          </Button>
         </div>
       </div>
 
@@ -647,7 +634,8 @@ export default function OrderDetailsPage() {
                                     Original:{" "}
                                   </span>
                                   <span className="line-through text-red-600 font-medium">
-                                    ${item.originalPrice.toFixed(2)}
+                                    {(item.originalPrice || 0).toLocaleString()}{" "}
+                                    RWF
                                   </span>
                                 </div>
                                 <div className="text-sm">
@@ -655,7 +643,7 @@ export default function OrderDetailsPage() {
                                     Discounted:{" "}
                                   </span>
                                   <span className="text-blue-700 font-semibold">
-                                    ${item.price?.toFixed(2) || "0.00"}
+                                    {(item.price || 0).toLocaleString()} RWF
                                   </span>
                                 </div>
                                 <div className="text-sm">
@@ -663,10 +651,11 @@ export default function OrderDetailsPage() {
                                     Saved:{" "}
                                   </span>
                                   <span className="text-blue-700 font-semibold">
-                                    $
-                                    {(item.originalPrice - item.price).toFixed(
-                                      2
-                                    )}
+                                    {(
+                                      (item.originalPrice || 0) -
+                                      (item.price || 0)
+                                    ).toLocaleString()}{" "}
+                                    RWF
                                   </span>
                                 </div>
                               </div>
@@ -677,7 +666,7 @@ export default function OrderDetailsPage() {
                           <span>Quantity: {item.quantity}</span>
                           {!item.hasDiscount && (
                             <span>
-                              Price: ${item.price?.toFixed(2) || "0.00"}
+                              Price: {(item.price || 0).toLocaleString()} RWF
                             </span>
                           )}
                           {item.availableStock !== undefined && (
@@ -772,26 +761,35 @@ export default function OrderDetailsPage() {
                         {item.hasDiscount && item.originalPrice ? (
                           <div>
                             <p className="text-sm text-muted-foreground line-through">
-                              ${(item.originalPrice * item.quantity).toFixed(2)}
+                              {(
+                                (item.originalPrice || 0) * item.quantity
+                              ).toLocaleString()}{" "}
+                              RWF
                             </p>
                             <p className="font-medium text-blue-600">
-                              $
-                              {item.totalPrice?.toFixed(2) ||
-                                (item.price * item.quantity).toFixed(2)}
+                              {(
+                                item.totalPrice ||
+                                (item.price || 0) * item.quantity
+                              ).toLocaleString()}{" "}
+                              RWF
                             </p>
                             <p className="text-xs text-blue-600">
-                              Saved: $
+                              Saved:{" "}
                               {(
-                                (item.originalPrice - item.price) *
+                                ((item.originalPrice || 0) -
+                                  (item.price || 0)) *
                                 item.quantity
-                              ).toFixed(2)}
+                              ).toLocaleString()}{" "}
+                              RWF
                             </p>
                           </div>
                         ) : (
                           <p className="font-medium">
-                            $
-                            {item.totalPrice?.toFixed(2) ||
-                              (item.price * item.quantity).toFixed(2)}
+                            {(
+                              item.totalPrice ||
+                              (item.price || 0) * item.quantity
+                            ).toLocaleString()}{" "}
+                            RWF
                           </p>
                         )}
                       </div>
@@ -832,25 +830,27 @@ export default function OrderDetailsPage() {
             <CardContent className="space-y-3">
               <div className="flex justify-between text-sm">
                 <span>Subtotal</span>
-                <span>${displayData?.subtotal?.toFixed(2) || "0.00"}</span>
+                <span>{(displayData?.subtotal || 0).toLocaleString()} RWF</span>
               </div>
-              {order.tax && order.tax > 0 && (
-                <div className="flex justify-between text-sm">
-                  <span>Tax</span>
-                  <span>${order.tax.toFixed(2)}</span>
-                </div>
-              )}
+              <div className="flex justify-between text-sm">
+                <span>Tax</span>
+                <span>{(order.tax || 0).toLocaleString()} RWF</span>
+              </div>
               {displayData?.shipping !== null &&
                 displayData?.shipping !== undefined && (
                   <div className="flex justify-between text-sm">
                     <span>Shipping</span>
-                    <span>${displayData.shipping.toFixed(2)}</span>
+                    <span>
+                      {(displayData.shipping || 0).toLocaleString()} RWF
+                    </span>
                   </div>
                 )}
               {displayData?.discount && displayData.discount > 0 ? (
                 <div className="flex justify-between text-sm text-green-600">
                   <span>Discount</span>
-                  <span>-${displayData.discount.toFixed(2)}</span>
+                  <span>
+                    -{(displayData.discount || 0).toLocaleString()} RWF
+                  </span>
                 </div>
               ) : null}
               {(order.paymentInfo?.paymentMethod === "POINTS" ||
@@ -871,7 +871,8 @@ export default function OrderDetailsPage() {
                         Points Value
                       </label>
                       <p className="text-sm font-bold text-green-600">
-                        ${order.paymentInfo.pointsValue?.toFixed(2) || "0.00"}
+                        {(order.paymentInfo.pointsValue || 0).toLocaleString()}{" "}
+                        RWF
                       </p>
                     </div>
                     {order.paymentInfo.paymentMethod === "HYBRID" && (
@@ -885,7 +886,7 @@ export default function OrderDetailsPage() {
               <div className="flex justify-between font-bold">
                 <span>Total</span>
                 <span className="text-primary">
-                  ${displayData?.total?.toFixed(2) || "0.00"}
+                  {(displayData?.total || 0).toLocaleString()} RWF
                 </span>
               </div>
             </CardContent>

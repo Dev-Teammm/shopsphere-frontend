@@ -121,12 +121,12 @@ class OrderService {
   async getOrderById(
     orderId: string,
     userId?: string,
-    shopSlug?: string
+    shopId?: string
   ): Promise<AdminOrderDTO> {
     try {
       const params: any = {};
       if (userId) params.userId = userId;
-      if (shopSlug) params.shopSlug = shopSlug;
+      if (shopId) params.shopId = shopId;
 
       const response = await apiClient.get<ApiResponse<AdminOrderDTO>>(
         API_ENDPOINTS.ADMIN_ORDERS.BY_ID(orderId),
