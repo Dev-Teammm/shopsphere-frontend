@@ -1078,7 +1078,11 @@ export default function OrdersPage() {
                               variant="ghost"
                               size="sm"
                               onClick={() =>
-                                router.push(`/dashboard/orders/${order.id}`)
+                                router.push(
+                                  `/dashboard/orders/${order.id}${
+                                    shopSlug ? `?shopSlug=${shopSlug}` : ""
+                                  }`
+                                )
                               }
                               className="h-8 w-8 p-0 text-primary hover:text-primary hover:bg-primary/10"
                               title="View Order Details"
