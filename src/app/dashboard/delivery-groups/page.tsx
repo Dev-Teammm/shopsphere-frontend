@@ -42,6 +42,9 @@ import {
   DeliveryGroupDTO,
 } from "@/lib/services/delivery-groups-service";
 import { toast } from "@/hooks/use-toast";
+import { useSearchParams, useRouter } from "next/navigation";
+import { useQuery } from "@tanstack/react-query";
+import { shopService } from "@/lib/services/shop-service";
 
 export default function DeliveryGroupsPage() {
   const [groups, setGroups] = useState<DeliveryGroupDTO[]>([]);
@@ -57,6 +60,26 @@ export default function DeliveryGroupsPage() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [showSummaryCards, setShowSummaryCards] = useState(false);
 
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const shopSlug = searchParams.get("shopSlug");
+
+  // Fetch shop data to get shopId
+  const { data: shopData, isLoading: shopLoading } = useQuery({
+    queryKey: ["shop", shopSlug],
+    queryFn: () => shopService.getShopBySlug(shopSlug!),
+    enabled: !!shopSlug,
+  });
+
+  const shopId = shopData?.shopId;
+
+  // Redirect if no shopSlug is provided
+  useEffect(() => {
+    if (!shopSlug) {
+      router.replace("/shops");
+    }
+  }, [shopSlug, router]);
+
   // Debounce search term for backend search
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -68,9 +91,12 @@ export default function DeliveryGroupsPage() {
   }, [searchTerm]);
 
   const fetchGroups = async () => {
+    if (!shopId) return;
+
     try {
       setLoading(true);
       const response = await deliveryGroupsService.getAllGroups(
+        shopId,
         currentPage,
         pageSize,
         sortBy,
@@ -103,8 +129,10 @@ export default function DeliveryGroupsPage() {
   };
 
   useEffect(() => {
-    fetchGroups();
-  }, [currentPage, pageSize, sortBy, sortDirection, debouncedSearch]);
+    if (shopId) {
+      fetchGroups();
+    }
+  }, [currentPage, pageSize, sortBy, sortDirection, debouncedSearch, shopId]);
 
   const formatDate = (dateString?: string) => {
     if (!dateString) return "N/A";
@@ -314,87 +342,87 @@ export default function DeliveryGroupsPage() {
 
           {/* Desktop: Grid */}
           <div className="hidden sm:grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
-          <Card
-            className={`cursor-pointer transition-all hover:shadow-md ${
-              statusFilter === "all" ? "ring-2 ring-primary" : ""
-            }`}
-            onClick={() => handleStatusFilterChange("all")}
-          >
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Total Groups
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{statusCounts.total}</div>
-            </CardContent>
-          </Card>
+            <Card
+              className={`cursor-pointer transition-all hover:shadow-md ${
+                statusFilter === "all" ? "ring-2 ring-primary" : ""
+              }`}
+              onClick={() => handleStatusFilterChange("all")}
+            >
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">
+                  Total Groups
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{statusCounts.total}</div>
+              </CardContent>
+            </Card>
 
-          <Card
-            className={`cursor-pointer transition-all hover:shadow-md ${
-              statusFilter === "pending" ? "ring-2 ring-primary" : ""
-            }`}
-            onClick={() => handleStatusFilterChange("pending")}
-          >
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                <Package className="h-4 w-4" />
-                Pending
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-gray-600">
-                {statusCounts.pending}
-              </div>
-              <p className="text-xs text-muted-foreground mt-1">
-                Not yet scheduled
-              </p>
-            </CardContent>
-          </Card>
+            <Card
+              className={`cursor-pointer transition-all hover:shadow-md ${
+                statusFilter === "pending" ? "ring-2 ring-primary" : ""
+              }`}
+              onClick={() => handleStatusFilterChange("pending")}
+            >
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                  <Package className="h-4 w-4" />
+                  Pending
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-gray-600">
+                  {statusCounts.pending}
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Not yet scheduled
+                </p>
+              </CardContent>
+            </Card>
 
-          <Card
-            className={`cursor-pointer transition-all hover:shadow-md ${
-              statusFilter === "scheduled" ? "ring-2 ring-primary" : ""
-            }`}
-            onClick={() => handleStatusFilterChange("scheduled")}
-          >
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                <Clock className="h-4 w-4" />
-                Scheduled
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-blue-600">
-                {statusCounts.scheduled}
-              </div>
-              <p className="text-xs text-muted-foreground mt-1">
-                Ready for delivery
-              </p>
-            </CardContent>
-          </Card>
+            <Card
+              className={`cursor-pointer transition-all hover:shadow-md ${
+                statusFilter === "scheduled" ? "ring-2 ring-primary" : ""
+              }`}
+              onClick={() => handleStatusFilterChange("scheduled")}
+            >
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                  <Clock className="h-4 w-4" />
+                  Scheduled
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-blue-600">
+                  {statusCounts.scheduled}
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Ready for delivery
+                </p>
+              </CardContent>
+            </Card>
 
-          <Card
-            className={`cursor-pointer transition-all hover:shadow-md ${
-              statusFilter === "inProgress" ? "ring-2 ring-primary" : ""
-            }`}
-            onClick={() => handleStatusFilterChange("inProgress")}
-          >
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                <Truck className="h-4 w-4" />
-                In Progress
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-green-600">
-                {statusCounts.inProgress}
-              </div>
-              <p className="text-xs text-muted-foreground mt-1">
-                Currently delivering
-              </p>
-            </CardContent>
-          </Card>
+            <Card
+              className={`cursor-pointer transition-all hover:shadow-md ${
+                statusFilter === "inProgress" ? "ring-2 ring-primary" : ""
+              }`}
+              onClick={() => handleStatusFilterChange("inProgress")}
+            >
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                  <Truck className="h-4 w-4" />
+                  In Progress
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-green-600">
+                  {statusCounts.inProgress}
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Currently delivering
+                </p>
+              </CardContent>
+            </Card>
           </div>
         </div>
       )}
@@ -417,7 +445,10 @@ export default function DeliveryGroupsPage() {
                 />
               </div>
             </div>
-            <Select value={statusFilter} onValueChange={handleStatusFilterChange}>
+            <Select
+              value={statusFilter}
+              onValueChange={handleStatusFilterChange}
+            >
               <SelectTrigger className="w-full sm:w-[180px]">
                 <SelectValue placeholder="Filter by Status" />
               </SelectTrigger>
@@ -477,7 +508,8 @@ export default function DeliveryGroupsPage() {
                 {statusFilter !== "all" || debouncedSearch ? (
                   <span className="text-muted-foreground text-sm md:text-base">
                     {" "}
-                    ({filteredGroups.length}{debouncedSearch ? ` of ${totalElements}` : ""})
+                    ({filteredGroups.length}
+                    {debouncedSearch ? ` of ${totalElements}` : ""})
                   </span>
                 ) : (
                   <span className="text-muted-foreground text-sm md:text-base">
@@ -535,11 +567,15 @@ export default function DeliveryGroupsPage() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="min-w-[150px]">Group Name</TableHead>
+                      <TableHead className="min-w-[150px]">
+                        Group Name
+                      </TableHead>
                       <TableHead className="min-w-[200px] hidden md:table-cell">
                         Description
                       </TableHead>
-                      <TableHead className="min-w-[150px]">Delivery Agent</TableHead>
+                      <TableHead className="min-w-[150px]">
+                        Delivery Agent
+                      </TableHead>
                       <TableHead className="min-w-[80px]">Orders</TableHead>
                       <TableHead className="min-w-[120px]">Status</TableHead>
                       <TableHead className="min-w-[100px] hidden lg:table-cell">
@@ -555,127 +591,131 @@ export default function DeliveryGroupsPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                      {filteredGroups.map((group: DeliveryGroupDTO) => (
-                        <TableRow key={group.deliveryGroupId}>
-                          <TableCell className="font-medium">
-                            {group.deliveryGroupName}
-                          </TableCell>
-                          <TableCell className="hidden md:table-cell">
-                            <div className="max-w-xs truncate">
-                              {group.deliveryGroupDescription || (
-                                <span className="text-muted-foreground">
-                                  No description
-                                </span>
-                              )}
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            {group.delivererName ? (
-                              <div className="flex items-center gap-2">
-                                <User className="h-4 w-4 text-muted-foreground" />
-                                <span className="truncate">{group.delivererName}</span>
-                              </div>
-                            ) : (
-                              <span className="text-muted-foreground text-sm">
-                                Not assigned
+                    {filteredGroups.map((group: DeliveryGroupDTO) => (
+                      <TableRow key={group.deliveryGroupId}>
+                        <TableCell className="font-medium">
+                          {group.deliveryGroupName}
+                        </TableCell>
+                        <TableCell className="hidden md:table-cell">
+                          <div className="max-w-xs truncate">
+                            {group.deliveryGroupDescription || (
+                              <span className="text-muted-foreground">
+                                No description
                               </span>
                             )}
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant="outline">{group.orderCount}</Badge>
-                          </TableCell>
-                          <TableCell>{getStatusBadge(group)}</TableCell>
-                          <TableCell className="hidden lg:table-cell">
-                            <div className="text-sm">
-                              {formatDateShort(group.createdAt)}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          {group.delivererName ? (
+                            <div className="flex items-center gap-2">
+                              <User className="h-4 w-4 text-muted-foreground" />
+                              <span className="truncate">
+                                {group.delivererName}
+                              </span>
                             </div>
-                          </TableCell>
-                          <TableCell className="hidden lg:table-cell">
-                            <div className="text-sm">
-                              {group.scheduledAt ? (
-                                formatDateShort(group.scheduledAt)
-                              ) : (
-                                <span className="text-muted-foreground">-</span>
-                              )}
-                            </div>
-                          </TableCell>
-                          <TableCell className="hidden xl:table-cell">
-                            <div className="text-sm">
-                              {group.deliveryStartedAt ? (
-                                formatDateShort(group.deliveryStartedAt)
-                              ) : (
-                                <span className="text-muted-foreground">-</span>
-                              )}
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => {
-                                window.location.href = `/dashboard/delivery-groups/${group.deliveryGroupId}`;
-                              }}
-                            >
-                              <Eye className="h-4 w-4" />
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
+                          ) : (
+                            <span className="text-muted-foreground text-sm">
+                              Not assigned
+                            </span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline">{group.orderCount}</Badge>
+                        </TableCell>
+                        <TableCell>{getStatusBadge(group)}</TableCell>
+                        <TableCell className="hidden lg:table-cell">
+                          <div className="text-sm">
+                            {formatDateShort(group.createdAt)}
+                          </div>
+                        </TableCell>
+                        <TableCell className="hidden lg:table-cell">
+                          <div className="text-sm">
+                            {group.scheduledAt ? (
+                              formatDateShort(group.scheduledAt)
+                            ) : (
+                              <span className="text-muted-foreground">-</span>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell className="hidden xl:table-cell">
+                          <div className="text-sm">
+                            {group.deliveryStartedAt ? (
+                              formatDateShort(group.deliveryStartedAt)
+                            ) : (
+                              <span className="text-muted-foreground">-</span>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              router.push(
+                                `/dashboard/delivery-groups/${group.deliveryGroupId}?shopSlug=${shopSlug}`
+                              );
+                            }}
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
 
-                {/* Pagination */}
-                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
-                  <div className="text-xs sm:text-sm text-muted-foreground">
-                    Showing {currentPage * pageSize + 1} to{" "}
-                    {Math.min((currentPage + 1) * pageSize, totalElements)} of{" "}
-                    {totalElements} groups
-                  </div>
-                  <div className="flex items-center gap-1 sm:gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setCurrentPage(0)}
-                      disabled={currentPage === 0 || loading}
-                      className="hidden sm:inline-flex"
-                    >
-                      First
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setCurrentPage(currentPage - 1)}
-                      disabled={currentPage === 0 || loading}
-                    >
-                      Previous
-                    </Button>
-                    <span className="text-xs sm:text-sm px-2">
-                      Page {currentPage + 1} of {totalPages || 1}
-                    </span>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setCurrentPage(currentPage + 1)}
-                      disabled={currentPage >= totalPages - 1 || loading}
-                    >
-                      Next
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setCurrentPage(totalPages - 1)}
-                      disabled={currentPage >= totalPages - 1 || loading}
-                      className="hidden sm:inline-flex"
-                    >
-                      Last
-                    </Button>
-                  </div>
+              {/* Pagination */}
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
+                <div className="text-xs sm:text-sm text-muted-foreground">
+                  Showing {currentPage * pageSize + 1} to{" "}
+                  {Math.min((currentPage + 1) * pageSize, totalElements)} of{" "}
+                  {totalElements} groups
+                </div>
+                <div className="flex items-center gap-1 sm:gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(0)}
+                    disabled={currentPage === 0 || loading}
+                    className="hidden sm:inline-flex"
+                  >
+                    First
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(currentPage - 1)}
+                    disabled={currentPage === 0 || loading}
+                  >
+                    Previous
+                  </Button>
+                  <span className="text-xs sm:text-sm px-2">
+                    Page {currentPage + 1} of {totalPages || 1}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(currentPage + 1)}
+                    disabled={currentPage >= totalPages - 1 || loading}
+                  >
+                    Next
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(totalPages - 1)}
+                    disabled={currentPage >= totalPages - 1 || loading}
+                    className="hidden sm:inline-flex"
+                  >
+                    Last
+                  </Button>
                 </div>
               </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
   );
 }

@@ -52,6 +52,7 @@ class OrderService {
     } = {}
   ): Promise<{
     data: AdminOrderDTO[];
+    totalPaidAmount?: number;
     pagination: {
       currentPage: number;
       totalPages: number;
@@ -79,6 +80,7 @@ class OrderService {
 
       return {
         data: response.data.data,
+        totalPaidAmount: response.data.totalPaidAmount,
         pagination: response.data.pagination,
       };
     } catch (error: any) {
@@ -116,10 +118,19 @@ class OrderService {
   /**
    * Get order by ID for admin
    */
-  async getOrderById(orderId: string): Promise<AdminOrderDTO> {
+  async getOrderById(
+    orderId: string,
+    userId?: string,
+    shopSlug?: string
+  ): Promise<AdminOrderDTO> {
     try {
+      const params: any = {};
+      if (userId) params.userId = userId;
+      if (shopSlug) params.shopSlug = shopSlug;
+
       const response = await apiClient.get<ApiResponse<AdminOrderDTO>>(
-        API_ENDPOINTS.ADMIN_ORDERS.BY_ID(orderId)
+        API_ENDPOINTS.ADMIN_ORDERS.BY_ID(orderId),
+        { params }
       );
       return response.data.data;
     } catch (error) {

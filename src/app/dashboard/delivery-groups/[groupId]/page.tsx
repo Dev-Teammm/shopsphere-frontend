@@ -23,6 +23,9 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { deliveryGroupsService } from "@/lib/services/delivery-groups-service";
 import { DeliveryGroupDTO } from "@/lib/types/delivery-groups";
+import { useQuery } from "@tanstack/react-query";
+import { shopService } from "@/lib/services/shop-service";
+import { useSearchParams } from "next/navigation";
 import {
   ArrowLeft,
   Package,
@@ -38,9 +41,18 @@ import {
 
 export default function DeliveryGroupDetailsPage() {
   const params = useParams();
+  const searchParams = useSearchParams();
   const router = useRouter();
   const { toast } = useToast();
   const groupId = Number(params.groupId);
+  const shopSlug = searchParams.get("shopSlug");
+
+  // Fetch shop data to get shopId
+  const { data: shopData } = useQuery({
+    queryKey: ["shop", shopSlug],
+    queryFn: () => shopService.getShopBySlug(shopSlug!),
+    enabled: !!shopSlug,
+  });
 
   const [group, setGroup] = useState<DeliveryGroupDTO | null>(null);
   const [orders, setOrders] = useState<any[]>([]);
@@ -101,7 +113,10 @@ export default function DeliveryGroupDetailsPage() {
 
     if (group.hasDeliveryFinished) {
       return (
-        <Badge variant="default" className="flex items-center w-fit gap-1 bg-green-600">
+        <Badge
+          variant="default"
+          className="flex items-center w-fit gap-1 bg-green-600"
+        >
           <CheckCircle2 className="h-3 w-3" />
           Completed
         </Badge>
@@ -109,7 +124,10 @@ export default function DeliveryGroupDetailsPage() {
     }
     if (group.hasDeliveryStarted && group.deliveryStartedAt) {
       return (
-        <Badge variant="default" className="flex items-center w-fit gap-1 bg-blue-600">
+        <Badge
+          variant="default"
+          className="flex items-center w-fit gap-1 bg-blue-600"
+        >
           <Truck className="h-3 w-3" />
           In Progress
         </Badge>
@@ -117,7 +135,10 @@ export default function DeliveryGroupDetailsPage() {
     }
     if (group.scheduledAt) {
       return (
-        <Badge variant="default" className="flex items-center w-fit gap-1 bg-yellow-600">
+        <Badge
+          variant="default"
+          className="flex items-center w-fit gap-1 bg-yellow-600"
+        >
           <Clock className="h-3 w-3" />
           Scheduled
         </Badge>
@@ -145,13 +166,36 @@ export default function DeliveryGroupDetailsPage() {
   };
 
   const getOrderStatusBadge = (status: string) => {
-    const statusMap: Record<string, { label: string; variant: any; className?: string }> = {
+    const statusMap: Record<
+      string,
+      { label: string; variant: any; className?: string }
+    > = {
       PENDING: { label: "Pending", variant: "secondary" },
-      CONFIRMED: { label: "Confirmed", variant: "default", className: "bg-blue-600" },
-      PROCESSING: { label: "Processing", variant: "default", className: "bg-purple-600" },
-      READY_FOR_DELIVERY: { label: "Ready", variant: "default", className: "bg-yellow-600" },
-      OUT_FOR_DELIVERY: { label: "Out for Delivery", variant: "default", className: "bg-orange-600" },
-      DELIVERED: { label: "Delivered", variant: "default", className: "bg-green-600" },
+      CONFIRMED: {
+        label: "Confirmed",
+        variant: "default",
+        className: "bg-blue-600",
+      },
+      PROCESSING: {
+        label: "Processing",
+        variant: "default",
+        className: "bg-purple-600",
+      },
+      READY_FOR_DELIVERY: {
+        label: "Ready",
+        variant: "default",
+        className: "bg-yellow-600",
+      },
+      OUT_FOR_DELIVERY: {
+        label: "Out for Delivery",
+        variant: "default",
+        className: "bg-orange-600",
+      },
+      DELIVERED: {
+        label: "Delivered",
+        variant: "default",
+        className: "bg-green-600",
+      },
       CANCELLED: { label: "Cancelled", variant: "destructive" },
       REFUNDED: { label: "Refunded", variant: "outline" },
     };
@@ -182,7 +226,15 @@ export default function DeliveryGroupDetailsPage() {
             <p className="text-muted-foreground mb-4">
               The delivery group you're looking for doesn't exist.
             </p>
-            <Button onClick={() => router.push("/dashboard/delivery-groups")}>
+            <Button
+              onClick={() =>
+                router.push(
+                  `/dashboard/delivery-groups${
+                    shopSlug ? `?shopSlug=${shopSlug}` : ""
+                  }`
+                )
+              }
+            >
               <ArrowLeft className="h-4 w-4 mr-2" />
               Back to Groups
             </Button>
@@ -200,7 +252,13 @@ export default function DeliveryGroupDetailsPage() {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => router.push("/dashboard/delivery-groups")}
+            onClick={() =>
+              router.push(
+                `/dashboard/delivery-groups${
+                  shopSlug ? `?shopSlug=${shopSlug}` : ""
+                }`
+              )
+            }
             className="mb-2"
           >
             <ArrowLeft className="h-4 w-4 mr-2" />
@@ -294,7 +352,9 @@ export default function DeliveryGroupDetailsPage() {
                   <Clock className="h-4 w-4" />
                   Scheduled At
                 </label>
-                <p className="text-base mt-1">{formatDate(group.scheduledAt)}</p>
+                <p className="text-base mt-1">
+                  {formatDate(group.scheduledAt)}
+                </p>
               </div>
             )}
 
@@ -439,7 +499,9 @@ export default function DeliveryGroupDetailsPage() {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => setCurrentPage((prev) => Math.max(0, prev - 1))}
+                    onClick={() =>
+                      setCurrentPage((prev) => Math.max(0, prev - 1))
+                    }
                     disabled={currentPage === 0 || ordersLoading}
                   >
                     Previous
@@ -453,7 +515,9 @@ export default function DeliveryGroupDetailsPage() {
                     variant="outline"
                     size="sm"
                     onClick={() =>
-                      setCurrentPage((prev) => Math.min(totalPages - 1, prev + 1))
+                      setCurrentPage((prev) =>
+                        Math.min(totalPages - 1, prev + 1)
+                      )
                     }
                     disabled={currentPage >= totalPages - 1 || ordersLoading}
                   >

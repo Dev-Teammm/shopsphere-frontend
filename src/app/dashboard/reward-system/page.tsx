@@ -452,22 +452,6 @@ export default function RewardSystemPage() {
                             </div>
                             <div className="flex justify-between">
                               <span className="text-muted-foreground">
-                                Signup Points:
-                              </span>
-                              <Badge
-                                variant={
-                                  system.isSignupPointsEnabled
-                                    ? "default"
-                                    : "secondary"
-                                }
-                              >
-                                {system.isSignupPointsEnabled
-                                  ? `${system.signupPointsAmount} pts`
-                                  : "Disabled"}
-                              </Badge>
-                            </div>
-                            <div className="flex justify-between">
-                              <span className="text-muted-foreground">
                                 Purchase Points:
                               </span>
                               <Badge

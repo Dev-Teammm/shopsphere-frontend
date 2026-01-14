@@ -44,6 +44,7 @@ class DeliveryGroupsService {
    * (includes started, finished, and pending groups)
    */
   async getAllGroups(
+    shopId: string,
     page: number = 0,
     size: number = 10,
     sortBy: string = "createdAt",
@@ -52,6 +53,7 @@ class DeliveryGroupsService {
   ): Promise<DeliveryGroupPaginationResponse> {
     try {
       const params: any = {
+        shopId,
         page,
         size,
         sort: `${sortBy},${sortDirection}`,
@@ -136,17 +138,19 @@ class DeliveryGroupsService {
   /**
    * Get all groups without pagination
    */
-  async getAllGroupsWithoutPagination(): Promise<DeliveryGroupDTO[]> {
+  async getAllGroupsWithoutPagination(
+    shopId: string
+  ): Promise<DeliveryGroupDTO[]> {
     try {
       const response = await apiClient.get<ApiResponse<DeliveryGroupDTO[]>>(
-        `/delivery-groups/all`
+        `/delivery-groups/all`,
+        { params: { shopId } }
       );
       return response.data.data;
     } catch (error) {
       throw handleApiError(error);
     }
   }
-
 }
 
 export const deliveryGroupsService = new DeliveryGroupsService();

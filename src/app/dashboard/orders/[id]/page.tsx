@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowLeft,
@@ -141,6 +141,42 @@ export default function OrderDetailsPage() {
 
     fetchReturns();
   }, [order?.orderNumber]);
+
+  const displayData = useMemo(() => {
+    if (!order) return null;
+
+    if (shopSlug && order.shopOrders && order.shopOrders.length > 0) {
+      // Find the specific shop order if possible
+      // The backend filters shopOrders based on shopSlug if provided
+      // If multiple shopOrders exist and no slug matches perfectly, we take the first one
+      const shopOrder =
+        order.shopOrders.find(
+          (so) =>
+            so.shopName.toLowerCase().replace(/\s+/g, "-") ===
+            shopSlug.toLowerCase()
+        ) || order.shopOrders[0];
+
+      return {
+        items: shopOrder.items || [],
+        subtotal: shopOrder.subtotal,
+        shipping: shopOrder.shippingCost,
+        discount: shopOrder.discountAmount,
+        total: shopOrder.totalAmount,
+        status: shopOrder.status,
+        shopOrderCode: shopOrder.shopOrderCode,
+      };
+    }
+
+    return {
+      items: order.items || [],
+      subtotal: order.subtotal,
+      shipping: order.shipping,
+      discount: order.discount,
+      total: order.total,
+      status: order.status,
+      shopOrderCode: order.orderNumber,
+    };
+  }, [order, shopSlug]);
 
   // Filter delivery agents based on search term
   useEffect(() => {
@@ -324,22 +360,28 @@ export default function OrderDetailsPage() {
           </Button>
           <div>
             <h1 className="text-2xl font-bold">Order Details</h1>
-            <p className="text-muted-foreground">Order #{order.orderNumber}</p>
+            <p className="text-muted-foreground">
+              {shopSlug ? "Shop Order" : "Order"} #
+              {displayData?.shopOrderCode || order.orderNumber}
+            </p>
           </div>
         </div>
 
         <div className="flex gap-2 items-center">
           <div className="flex gap-2">
             <Badge
-              variant={getStatusBadgeVariant(order.status)}
+              variant={getStatusBadgeVariant(
+                displayData?.status || order.status
+              )}
               className={
-                order.status === OrderStatus.PROCESSING ||
-                order.status === OrderStatus.DELIVERED
+                (displayData?.status || order.status) ===
+                  OrderStatus.PROCESSING ||
+                (displayData?.status || order.status) === OrderStatus.DELIVERED
                   ? "bg-primary hover:bg-primary/90"
                   : ""
               }
             >
-              {order.status}
+              {displayData?.status || order.status}
             </Badge>
             {order.paymentInfo?.paymentStatus && (
               <Badge
@@ -523,13 +565,13 @@ export default function OrderDetailsPage() {
             <CardHeader>
               <CardTitle>Order Items</CardTitle>
               <CardDescription>
-                {order.items?.length || 0} item(s) in this order
+                {displayData?.items?.length || 0} item(s) in this order
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {order.items && order.items.length > 0 ? (
+              {displayData?.items && displayData.items.length > 0 ? (
                 <div className="space-y-4">
-                  {order.items.map((item, index) => (
+                  {displayData.items.map((item, index) => (
                     <div
                       key={item.id || index}
                       className="flex gap-4 items-start p-4 border rounded-md"
@@ -790,7 +832,7 @@ export default function OrderDetailsPage() {
             <CardContent className="space-y-3">
               <div className="flex justify-between text-sm">
                 <span>Subtotal</span>
-                <span>${order.subtotal?.toFixed(2) || "0.00"}</span>
+                <span>${displayData?.subtotal?.toFixed(2) || "0.00"}</span>
               </div>
               {order.tax && order.tax > 0 && (
                 <div className="flex justify-between text-sm">
@@ -798,18 +840,19 @@ export default function OrderDetailsPage() {
                   <span>${order.tax.toFixed(2)}</span>
                 </div>
               )}
-              {order.shipping && order.shipping > 0 && (
-                <div className="flex justify-between text-sm">
-                  <span>Shipping</span>
-                  <span>${order.shipping.toFixed(2)}</span>
-                </div>
-              )}
-              {order.discount && order.discount > 0 && (
-                <div className="flex justify-between text-sm text-blue-600">
+              {displayData?.shipping !== null &&
+                displayData?.shipping !== undefined && (
+                  <div className="flex justify-between text-sm">
+                    <span>Shipping</span>
+                    <span>${displayData.shipping.toFixed(2)}</span>
+                  </div>
+                )}
+              {displayData?.discount && displayData.discount > 0 ? (
+                <div className="flex justify-between text-sm text-green-600">
                   <span>Discount</span>
-                  <span>-${order.discount.toFixed(2)}</span>
+                  <span>-${displayData.discount.toFixed(2)}</span>
                 </div>
-              )}
+              ) : null}
               {(order.paymentInfo?.paymentMethod === "POINTS" ||
                 order.paymentInfo?.paymentMethod === "HYBRID") &&
                 order.paymentInfo?.pointsUsed !== undefined &&
@@ -839,9 +882,11 @@ export default function OrderDetailsPage() {
                   </>
                 )}
               <Separator />
-              <div className="flex justify-between font-medium">
+              <div className="flex justify-between font-bold">
                 <span>Total</span>
-                <span>${order.total?.toFixed(2) || "0.00"}</span>
+                <span className="text-primary">
+                  ${displayData?.total?.toFixed(2) || "0.00"}
+                </span>
               </div>
             </CardContent>
           </Card>
