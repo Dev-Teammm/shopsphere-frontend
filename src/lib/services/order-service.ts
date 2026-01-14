@@ -52,6 +52,7 @@ class OrderService {
     } = {}
   ): Promise<{
     data: AdminOrderDTO[];
+    totalPaidAmount?: number;
     pagination: {
       currentPage: number;
       totalPages: number;
@@ -79,6 +80,7 @@ class OrderService {
 
       return {
         data: response.data.data,
+        totalPaidAmount: response.data.totalPaidAmount,
         pagination: response.data.pagination,
       };
     } catch (error: any) {

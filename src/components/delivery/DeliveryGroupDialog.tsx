@@ -51,6 +51,7 @@ interface DeliveryGroupDialogProps {
   selectedOrderIds: number[];
   onSuccess: () => void;
   currentGroup?: DeliveryGroupDto | null; // Existing group if order is already assigned
+  shopId: string;
 }
 
 export function DeliveryGroupDialog({
@@ -59,6 +60,7 @@ export function DeliveryGroupDialog({
   selectedOrderIds,
   onSuccess,
   currentGroup,
+  shopId,
 }: DeliveryGroupDialogProps) {
   const [groups, setGroups] = useState<DeliveryGroupDto[]>([]);
   const [loading, setLoading] = useState(false);
@@ -115,6 +117,7 @@ export function DeliveryGroupDialog({
     try {
       setLoading(true);
       const response = await deliveryGroupService.getAvailableGroups(
+        shopId,
         currentPage,
         10,
         searchTerm || undefined
@@ -168,7 +171,8 @@ export function DeliveryGroupDialog({
       fetchGroups(); // Refresh groups
     } catch (error: any) {
       console.error("Error assigning orders to group:", error);
-      const errorMessage = error?.response?.data?.message || "Failed to assign orders to group";
+      const errorMessage =
+        error?.response?.data?.message || "Failed to assign orders to group";
       toast.error(errorMessage);
     } finally {
       setAssigning(false);
@@ -236,22 +240,36 @@ export function DeliveryGroupDialog({
                 <CardContent className="space-y-4">
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <Label className="text-muted-foreground">Group Name</Label>
-                      <p className="font-medium">{currentGroup.deliveryGroupName}</p>
+                      <Label className="text-muted-foreground">
+                        Group Name
+                      </Label>
+                      <p className="font-medium">
+                        {currentGroup.deliveryGroupName}
+                      </p>
                     </div>
                     <div>
                       <Label className="text-muted-foreground">Deliverer</Label>
-                      <p className="font-medium">{currentGroup.delivererName}</p>
+                      <p className="font-medium">
+                        {currentGroup.delivererName}
+                      </p>
                     </div>
                     {currentGroup.deliveryGroupDescription && (
                       <div className="col-span-2">
-                        <Label className="text-muted-foreground">Description</Label>
-                        <p className="text-sm">{currentGroup.deliveryGroupDescription}</p>
+                        <Label className="text-muted-foreground">
+                          Description
+                        </Label>
+                        <p className="text-sm">
+                          {currentGroup.deliveryGroupDescription}
+                        </p>
                       </div>
                     )}
                     <div>
-                      <Label className="text-muted-foreground">Total Orders</Label>
-                      <p className="font-medium">{currentGroup.memberCount} orders</p>
+                      <Label className="text-muted-foreground">
+                        Total Orders
+                      </Label>
+                      <p className="font-medium">
+                        {currentGroup.memberCount} orders
+                      </p>
                     </div>
                     <div>
                       <Label className="text-muted-foreground">Created</Label>
@@ -266,7 +284,9 @@ export function DeliveryGroupDialog({
                           <AlertDescription>
                             Delivery started on{" "}
                             {currentGroup.deliveryStartedAt &&
-                              new Date(currentGroup.deliveryStartedAt).toLocaleString()}
+                              new Date(
+                                currentGroup.deliveryStartedAt
+                              ).toLocaleString()}
                           </AlertDescription>
                         </Alert>
                       </div>
@@ -316,135 +336,141 @@ export function DeliveryGroupDialog({
                   </Button>
                 </div>
 
-            {/* Groups Table */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">
-                  Available Delivery Groups
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-0">
-                {loading ? (
-                  <div className="flex items-center justify-center py-8">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-                    <span className="ml-2 text-sm text-muted-foreground">
-                      Loading groups...
-                    </span>
-                  </div>
-                ) : filteredGroups.length === 0 ? (
-                  <div className="text-center py-8 text-muted-foreground">
-                    No delivery groups found
-                  </div>
-                ) : (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Group Name</TableHead>
-                        <TableHead>Deliverer</TableHead>
-                        <TableHead>Orders</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead>Created</TableHead>
-                        <TableHead>Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {filteredGroups.map((group) => (
-                        <TableRow
-                          key={group.deliveryGroupId}
-                          className={
-                            selectedGroupId === group.deliveryGroupId
-                              ? "bg-primary/5"
-                              : ""
-                          }
-                        >
-                          <TableCell>
-                            <div>
-                              <div className="font-medium">
-                                {group.deliveryGroupName}
-                              </div>
-                              {group.deliveryGroupDescription && (
-                                <div className="text-sm text-muted-foreground">
-                                  {group.deliveryGroupDescription}
-                                </div>
-                              )}
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <div className="text-sm">
-                              <div className="font-medium">
-                                {group.delivererName}
-                              </div>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant="outline">
-                              {group.memberCount} orders
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            <Badge
-                              variant={getStatusBadgeVariant(group.status)}
-                            >
-                              {group.status}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            <div className="text-sm text-muted-foreground">
-                              {new Date(group.createdAt).toLocaleDateString()}
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <Button
-                              size="sm"
-                              onClick={() =>
-                                setSelectedGroupId(group.deliveryGroupId)
+                {/* Groups Table */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg">
+                      Available Delivery Groups
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-0">
+                    {loading ? (
+                      <div className="flex items-center justify-center py-8">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                        <span className="ml-2 text-sm text-muted-foreground">
+                          Loading groups...
+                        </span>
+                      </div>
+                    ) : filteredGroups.length === 0 ? (
+                      <div className="text-center py-8 text-muted-foreground">
+                        No delivery groups found
+                      </div>
+                    ) : (
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Group Name</TableHead>
+                            <TableHead>Deliverer</TableHead>
+                            <TableHead>Orders</TableHead>
+                            <TableHead>Status</TableHead>
+                            <TableHead>Created</TableHead>
+                            <TableHead>Actions</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {filteredGroups.map((group) => (
+                            <TableRow
+                              key={group.deliveryGroupId}
+                              className={
+                                selectedGroupId === group.deliveryGroupId
+                                  ? "bg-primary/5"
+                                  : ""
                               }
-                              disabled={group.hasDeliveryStarted}
                             >
-                              {selectedGroupId === group.deliveryGroupId ? (
-                                <CheckCircle2 className="h-4 w-4 mr-1" />
-                              ) : (
-                                <Plus className="h-4 w-4 mr-1" />
-                              )}
-                              {selectedGroupId === group.deliveryGroupId
-                                ? "Selected"
-                                : "Select"}
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                )}
-              </CardContent>
-            </Card>
+                              <TableCell>
+                                <div>
+                                  <div className="font-medium">
+                                    {group.deliveryGroupName}
+                                  </div>
+                                  {group.deliveryGroupDescription && (
+                                    <div className="text-sm text-muted-foreground">
+                                      {group.deliveryGroupDescription}
+                                    </div>
+                                  )}
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                <div className="text-sm">
+                                  <div className="font-medium">
+                                    {group.delivererName}
+                                  </div>
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                <Badge variant="outline">
+                                  {group.memberCount} orders
+                                </Badge>
+                              </TableCell>
+                              <TableCell>
+                                <Badge
+                                  variant={getStatusBadgeVariant(group.status)}
+                                >
+                                  {group.status}
+                                </Badge>
+                              </TableCell>
+                              <TableCell>
+                                <div className="text-sm text-muted-foreground">
+                                  {new Date(
+                                    group.createdAt
+                                  ).toLocaleDateString()}
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                <Button
+                                  size="sm"
+                                  onClick={() =>
+                                    setSelectedGroupId(group.deliveryGroupId)
+                                  }
+                                  disabled={group.hasDeliveryStarted}
+                                >
+                                  {selectedGroupId === group.deliveryGroupId ? (
+                                    <CheckCircle2 className="h-4 w-4 mr-1" />
+                                  ) : (
+                                    <Plus className="h-4 w-4 mr-1" />
+                                  )}
+                                  {selectedGroupId === group.deliveryGroupId
+                                    ? "Selected"
+                                    : "Select"}
+                                </Button>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    )}
+                  </CardContent>
+                </Card>
 
-            {/* Pagination */}
-            {totalPages > 1 && (
-              <div className="flex justify-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setCurrentPage(Math.max(0, currentPage - 1))}
-                  disabled={currentPage === 0}
-                >
-                  Previous
-                </Button>
-                <span className="flex items-center px-4 text-sm text-muted-foreground">
-                  Page {currentPage + 1} of {totalPages}
-                </span>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() =>
-                    setCurrentPage(Math.min(totalPages - 1, currentPage + 1))
-                  }
-                  disabled={currentPage >= totalPages - 1}
-                >
-                  Next
-                </Button>
-              </div>
-            )}
+                {/* Pagination */}
+                {totalPages > 1 && (
+                  <div className="flex justify-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() =>
+                        setCurrentPage(Math.max(0, currentPage - 1))
+                      }
+                      disabled={currentPage === 0}
+                    >
+                      Previous
+                    </Button>
+                    <span className="flex items-center px-4 text-sm text-muted-foreground">
+                      Page {currentPage + 1} of {totalPages}
+                    </span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() =>
+                        setCurrentPage(
+                          Math.min(totalPages - 1, currentPage + 1)
+                        )
+                      }
+                      disabled={currentPage >= totalPages - 1}
+                    >
+                      Next
+                    </Button>
+                  </div>
+                )}
 
                 {/* Selected Group Info */}
                 {selectedGroupId && (
@@ -454,8 +480,9 @@ export function DeliveryGroupDialog({
                       Selected group:{" "}
                       <strong>
                         {
-                          groups.find((g) => g.deliveryGroupId === selectedGroupId)
-                            ?.deliveryGroupName
+                          groups.find(
+                            (g) => g.deliveryGroupId === selectedGroupId
+                          )?.deliveryGroupName
                         }
                       </strong>
                     </AlertDescription>
@@ -471,10 +498,7 @@ export function DeliveryGroupDialog({
             ) : (
               <>
                 {isSingleOrderWithGroup && (
-                  <Button
-                    variant="outline"
-                    onClick={() => setViewMode("view")}
-                  >
+                  <Button variant="outline" onClick={() => setViewMode("view")}>
                     Back to View
                   </Button>
                 )}
@@ -504,6 +528,7 @@ export function DeliveryGroupDialog({
         onSuccess={handleCreateGroupSuccess}
         selectedOrderIds={selectedOrderIds}
         mode={isSingleOrderWithGroup ? "change" : "create"}
+        shopId={shopId}
       />
 
       {/* Bulk Result Modal */}

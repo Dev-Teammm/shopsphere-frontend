@@ -115,6 +115,7 @@ export interface DeliveryGroupInfoDTO {
   deliveryGroupDescription?: string;
   delivererId: string;
   delivererName: string;
+  shopId: string;
   delivererEmail?: string;
   delivererPhone?: string;
   memberCount: number;
@@ -144,6 +145,7 @@ export interface AdminShopOrderDTO {
   deliveredAt?: string;
   createdAt: string;
   updatedAt: string;
+  deliveryGroup?: DeliveryGroupInfoDTO;
 }
 
 export interface AdminOrderDTO {

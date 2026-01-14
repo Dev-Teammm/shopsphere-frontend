@@ -12,6 +12,7 @@ export interface DeliveryGroupDto {
   scheduledAt?: string;
   hasDeliveryStarted: boolean;
   deliveryStartedAt?: string;
+  shopId: string;
   status: string;
 }
 
@@ -31,6 +32,7 @@ export interface CreateReadyForDeliveryGroupDTO {
   deliveryGroupName: string;
   deliveryGroupDescription?: string;
   delivererId: string;
+  shopId: string;
   orderIds?: number[];
 }
 
@@ -65,11 +67,12 @@ class DeliveryGroupService {
   private baseUrl = "/delivery-groups";
 
   async getAvailableGroups(
+    shopId: string,
     page: number = 0,
     size: number = 10,
     search?: string
   ): Promise<PaginatedResponse<DeliveryGroupDto>> {
-    const params: any = { page, size };
+    const params: any = { shopId, page, size };
     if (search && search.trim()) {
       params.search = search.trim();
     }
@@ -102,11 +105,12 @@ class DeliveryGroupService {
   }
 
   async getAvailableAgents(
+    shopId: string,
     page: number = 0,
     size: number = 10,
     search?: string
   ): Promise<PaginatedResponse<AgentDto>> {
-    const params: any = { page, size };
+    const params: any = { shopId, page, size };
     if (search && search.trim()) {
       params.search = search.trim();
     }

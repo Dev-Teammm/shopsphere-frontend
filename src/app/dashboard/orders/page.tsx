@@ -261,6 +261,7 @@ export default function OrdersPage() {
           scheduledAt: order.deliveryGroup.scheduledAt,
           hasDeliveryStarted: order.deliveryGroup.hasDeliveryStarted,
           deliveryStartedAt: order.deliveryGroup.deliveryStartedAt,
+          shopId: order.deliveryGroup.shopId,
           status: order.deliveryGroup.status,
         };
         newOrderGroups.set(parseInt(order.id), group);
@@ -1175,6 +1176,7 @@ export default function OrdersPage() {
         onOpenChange={setDeliveryGroupDialogOpen}
         selectedOrderIds={selectedOrderIds}
         onSuccess={handleDeliveryGroupSuccess}
+        shopId={shopId || ""}
         currentGroup={
           selectedOrderIds.length === 1
             ? orderGroups.get(selectedOrderIds[0]) || null
