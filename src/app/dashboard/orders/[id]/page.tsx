@@ -176,6 +176,9 @@ export default function OrderDetailsPage() {
       total: order.total || 0,
       status: order.status,
       shopOrderCode: shopOrder ? shopOrder.shopOrderCode : order.orderNumber,
+      pointsUsed: shopOrder?.pointsUsed,
+      pointsValue: shopOrder?.pointsValue,
+      paymentMethod: shopOrder?.paymentMethod,
     };
   }, [order, shopSlug]);
 
@@ -853,14 +856,47 @@ export default function OrderDetailsPage() {
                   </span>
                 </div>
               ) : null}
-              {(order.paymentInfo?.paymentMethod === "POINTS" ||
-                order.paymentInfo?.paymentMethod === "HYBRID") &&
+              {/* Shop Specific Points Info */}
+              {displayData?.pointsUsed !== undefined &&
+              displayData.pointsUsed > 0 ? (
+                <>
+                  <div className="pt-3 border-t">
+                    <label className="text-sm font-medium text-muted-foreground">
+                      Points Used (this shop)
+                    </label>
+                    <p className="text-sm font-bold text-yellow-600">
+                      {displayData.pointsUsed} points
+                    </p>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-muted-foreground">
+                      Points Value
+                    </label>
+                    <p className="text-sm font-bold text-green-600">
+                      -{(displayData.pointsValue || 0).toLocaleString()} RWF
+                    </p>
+                  </div>
+                  {displayData.paymentMethod === "HYBRID" && (
+                    <div className="text-xs text-muted-foreground italic">
+                      Hybrid Payment (Points + Card)
+                    </div>
+                  )}
+                  {displayData.paymentMethod === "POINTS" && (
+                    <div className="text-xs text-green-600 font-medium italic">
+                      Full Points Payment
+                    </div>
+                  )}
+                </>
+              ) : (
+                /* Fallback to global points info if not shop-specific but still hybrid/points */
+                (order.paymentInfo?.paymentMethod === "POINTS" ||
+                  order.paymentInfo?.paymentMethod === "HYBRID") &&
                 order.paymentInfo?.pointsUsed !== undefined &&
                 order.paymentInfo?.pointsUsed > 0 && (
                   <>
                     <div className="pt-3 border-t">
                       <label className="text-sm font-medium text-muted-foreground">
-                        Points Used
+                        Order Points Used
                       </label>
                       <p className="text-sm font-bold text-yellow-600">
                         {order.paymentInfo?.pointsUsed} points
@@ -871,17 +907,13 @@ export default function OrderDetailsPage() {
                         Points Value
                       </label>
                       <p className="text-sm font-bold text-green-600">
-                        {(order.paymentInfo.pointsValue || 0).toLocaleString()}{" "}
+                        -{(order.paymentInfo.pointsValue || 0).toLocaleString()}{" "}
                         RWF
                       </p>
                     </div>
-                    {order.paymentInfo.paymentMethod === "HYBRID" && (
-                      <div className="text-xs text-muted-foreground italic">
-                        Combined points and card payment
-                      </div>
-                    )}
                   </>
-                )}
+                )
+              )}
               <Separator />
               <div className="flex justify-between font-bold">
                 <span>Total</span>
@@ -1089,7 +1121,28 @@ export default function OrderDetailsPage() {
                   <label className="text-sm font-medium text-muted-foreground">
                     Payment Method
                   </label>
-                  <p className="text-sm">{order.paymentInfo.paymentMethod}</p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-medium">
+                      {displayData?.paymentMethod ||
+                        order.paymentInfo.paymentMethod}
+                    </p>
+                    {displayData?.paymentMethod === "POINTS" && (
+                      <Badge
+                        variant="outline"
+                        className="text-[10px] bg-green-50 text-green-700 border-green-200"
+                      >
+                        POINTS
+                      </Badge>
+                    )}
+                    {displayData?.paymentMethod === "HYBRID" && (
+                      <Badge
+                        variant="outline"
+                        className="text-[10px] bg-blue-50 text-blue-700 border-blue-200"
+                      >
+                        HYBRID
+                      </Badge>
+                    )}
+                  </div>
                 </div>
               )}
               {order.paymentInfo?.paymentStatus && (

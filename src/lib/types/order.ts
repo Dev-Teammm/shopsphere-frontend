@@ -146,6 +146,10 @@ export interface AdminShopOrderDTO {
   createdAt: string;
   updatedAt: string;
   deliveryGroup?: DeliveryGroupInfoDTO;
+  // Points-related fields for this shop order
+  pointsUsed?: number;
+  pointsValue?: number;
+  paymentMethod?: string; // "POINTS", "HYBRID", "CARD", or "STRIPE"
 }
 
 export interface AdminOrderDTO {

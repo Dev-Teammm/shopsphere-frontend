@@ -15,6 +15,7 @@ export interface DashboardResponseDTO {
   totalProducts: number;
   totalOrders: number;
   totalRevenue: number | null; // Only for ADMIN; null for others
+  pointsRevenue?: number; // Point value for vendors
   totalCustomers: number;
   recentOrders: RecentOrderDTO[];
   alerts: AlertsDTO;
