@@ -112,11 +112,18 @@ export default function DashboardPage() {
         <div>
           <h2 className="text-3xl font-bold tracking-tight">Dashboard</h2>
           <p className="text-muted-foreground">
-            Welcome back, {user?.firstName} {user?.lastName}! Here's a quick overview.
+            Welcome back, {user?.firstName} {user?.lastName}! Here's a quick
+            overview.
           </p>
         </div>
 
-        <Link href={shopSlug ? `/dashboard/analytics?shopSlug=${encodeURIComponent(shopSlug)}` : "/dashboard/analytics"}>
+        <Link
+          href={
+            shopSlug
+              ? `/dashboard/analytics?shopSlug=${encodeURIComponent(shopSlug)}`
+              : "/dashboard/analytics"
+          }
+        >
           <Button variant="outline" className="gap-2">
             <span>View Detailed Analytics</span>
             <ArrowUpRight className="h-4 w-4" />
@@ -155,6 +162,17 @@ export default function DashboardPage() {
             description="All time revenue"
           />
         )}
+
+        {/* Shop Points Revenue - visible for vendors/admins when points exist */}
+        {data?.pointsRevenue !== undefined && data.pointsRevenue > 0 && (
+          <StatCard
+            title="Points Revenue"
+            value={formatCurrency(data.pointsRevenue)}
+            icon={<Package className="h-4 w-4 text-blue-500" />}
+            description="Value from used points"
+            className="border-blue-100 bg-blue-50/30"
+          />
+        )}
       </div>
 
       {/* Alerts - Important for quick action */}
@@ -184,7 +202,13 @@ export default function DashboardPage() {
         <p>
           For more detailed metrics and reports, visit the{" "}
           <Link
-            href={shopSlug ? `/dashboard/analytics?shopSlug=${encodeURIComponent(shopSlug)}` : "/dashboard/analytics"}
+            href={
+              shopSlug
+                ? `/dashboard/analytics?shopSlug=${encodeURIComponent(
+                    shopSlug
+                  )}`
+                : "/dashboard/analytics"
+            }
             className="text-primary hover:underline"
           >
             Analytics
