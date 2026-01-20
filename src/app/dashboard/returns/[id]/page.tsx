@@ -1,18 +1,29 @@
 "use client";
 
-import { useState, useEffect } from 'react';
-import { useParams, useRouter } from 'next/navigation';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Textarea } from '@/components/ui/textarea';
-import { Separator } from '@/components/ui/separator';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { 
+import { useState, useEffect } from "react";
+import { useParams, useRouter } from "next/navigation";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Textarea } from "@/components/ui/textarea";
+import { Separator } from "@/components/ui/separator";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   ArrowLeft,
-  CheckCircle, 
-  XCircle, 
-  Clock, 
+  CheckCircle,
+  XCircle,
+  Clock,
   Package,
   User,
   Calendar,
@@ -29,34 +40,43 @@ import {
   ExternalLink,
   Play,
   X,
-  RotateCcw
-} from 'lucide-react';
-import { toast } from 'sonner';
-import { ReturnRequestDTO, ReturnDecisionDTO } from '@/types/return';
-import returnService from '@/services/returnService';
-import { formatDistanceToNow, format } from 'date-fns';
-import Link from 'next/link';
+  RotateCcw,
+} from "lucide-react";
+import { toast } from "sonner";
+import { ReturnRequestDTO, ReturnDecisionDTO } from "@/types/return";
+import returnService from "@/services/returnService";
+import { formatDistanceToNow, format } from "date-fns";
+import Link from "next/link";
 
 export default function ReturnRequestDetailPage() {
   const params = useParams();
+  const searchParams =
+    typeof window !== "undefined"
+      ? new URLSearchParams(window.location.search)
+      : null;
+  const shopSlug = searchParams?.get("shopSlug");
   const router = useRouter();
   const returnRequestId = params.id as string;
 
-  const [returnRequest, setReturnRequest] = useState<ReturnRequestDTO | null>(null);
+  const [returnRequest, setReturnRequest] = useState<ReturnRequestDTO | null>(
+    null,
+  );
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
-  const [decisionNotes, setDecisionNotes] = useState('');
+  const [decisionNotes, setDecisionNotes] = useState("");
   const [selectedMedia, setSelectedMedia] = useState<any>(null);
   const [showMediaViewer, setShowMediaViewer] = useState(false);
 
   const fetchReturnRequest = async () => {
     try {
       setLoading(true);
-      const data = await returnService.getReturnRequestById(String(returnRequestId));
+      const data = await returnService.getReturnRequestById(
+        String(returnRequestId),
+      );
       setReturnRequest(data);
     } catch (error) {
-      console.error('Failed to fetch return request:', error);
-      toast.error('Failed to load return request details');
+      console.error("Failed to fetch return request:", error);
+      toast.error("Failed to load return request details");
     } finally {
       setLoading(false);
     }
@@ -68,8 +88,14 @@ export default function ReturnRequestDetailPage() {
     }
   }, [returnRequestId]);
 
-  const handleDecision = async (decision: 'APPROVED' | 'DENIED') => {
+  const handleDecision = async (decision: "APPROVED" | "DENIED") => {
     if (!returnRequest) return;
+
+    // Validate rejection note if denying
+    if (decision === "DENIED" && !decisionNotes.trim()) {
+      toast.error("Please provide a reason for denying this return request");
+      return;
+    }
 
     try {
       setProcessing(true);
@@ -81,13 +107,17 @@ export default function ReturnRequestDetailPage() {
 
       await returnService.reviewReturnRequest(decisionData);
       toast.success(`Return request ${decision.toLowerCase()} successfully`);
-      
+
       // Refresh the data
       await fetchReturnRequest();
-      setDecisionNotes('');
-    } catch (error) {
-      console.error('Failed to process decision:', error);
-      toast.error('Failed to process decision');
+      setDecisionNotes("");
+    } catch (error: any) {
+      console.error("Failed to process decision:", error);
+      const errorMessage =
+        error.response?.data?.message ||
+        error.message ||
+        "Failed to process decision";
+      toast.error(errorMessage);
     } finally {
       setProcessing(false);
     }
@@ -95,10 +125,26 @@ export default function ReturnRequestDetailPage() {
 
   const getStatusBadge = (status: string) => {
     const statusConfig = {
-      PENDING: { variant: 'secondary' as const, icon: Clock, color: 'text-yellow-600' },
-      APPROVED: { variant: 'default' as const, icon: CheckCircle, color: 'text-green-600' },
-      DENIED: { variant: 'destructive' as const, icon: XCircle, color: 'text-red-600' },
-      COMPLETED: { variant: 'default' as const, icon: CheckCircle, color: 'text-green-600' },
+      PENDING: {
+        variant: "secondary" as const,
+        icon: Clock,
+        color: "text-yellow-600",
+      },
+      APPROVED: {
+        variant: "default" as const,
+        icon: CheckCircle,
+        color: "text-green-600",
+      },
+      DENIED: {
+        variant: "destructive" as const,
+        icon: XCircle,
+        color: "text-red-600",
+      },
+      COMPLETED: {
+        variant: "default" as const,
+        icon: CheckCircle,
+        color: "text-green-600",
+      },
     };
 
     const config = statusConfig[status as keyof typeof statusConfig];
@@ -115,20 +161,26 @@ export default function ReturnRequestDetailPage() {
   };
 
   const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
     }).format(amount);
   };
 
   const calculateTotalRefundAmount = () => {
     if (!returnRequest) return 0;
+    if (
+      returnRequest.totalAmount !== undefined &&
+      returnRequest.totalAmount !== null
+    ) {
+      return returnRequest.totalAmount;
+    }
     return returnRequest.returnItems.reduce((total, item) => {
       return total + (item.totalPrice || 0);
     }, 0);
   };
 
-  const canMakeDecision = returnRequest?.status === 'PENDING';
+  const canMakeDecision = returnRequest?.status === "PENDING";
 
   const openMediaViewer = (media: any) => {
     setSelectedMedia(media);
@@ -141,15 +193,27 @@ export default function ReturnRequestDetailPage() {
   };
 
   const isVideoFile = (media: any) => {
-    return media.fileType === 'VIDEO' || media.video || 
-           (media.mimeType && media.mimeType.startsWith('video/')) ||
-           (media.fileExtension && ['mp4', 'webm', 'ogg', 'avi', 'mov'].includes(media.fileExtension.toLowerCase()));
+    return (
+      media.fileType === "VIDEO" ||
+      media.video ||
+      (media.mimeType && media.mimeType.startsWith("video/")) ||
+      (media.fileExtension &&
+        ["mp4", "webm", "ogg", "avi", "mov"].includes(
+          media.fileExtension.toLowerCase(),
+        ))
+    );
   };
 
   const isImageFile = (media: any) => {
-    return media.fileType === 'IMAGE' || media.image || 
-           (media.mimeType && media.mimeType.startsWith('image/')) ||
-           (media.fileExtension && ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(media.fileExtension.toLowerCase()));
+    return (
+      media.fileType === "IMAGE" ||
+      media.image ||
+      (media.mimeType && media.mimeType.startsWith("image/")) ||
+      (media.fileExtension &&
+        ["jpg", "jpeg", "png", "gif", "webp", "svg"].includes(
+          media.fileExtension.toLowerCase(),
+        ))
+    );
   };
 
   if (loading) {
@@ -168,11 +232,16 @@ export default function ReturnRequestDetailPage() {
       <div className="flex-1 space-y-6 p-6">
         <div className="text-center py-12">
           <AlertCircle className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-          <h3 className="text-lg font-semibold mb-2">Return request not found</h3>
+          <h3 className="text-lg font-semibold mb-2">
+            Return request not found
+          </h3>
           <p className="text-muted-foreground mb-4">
-            The return request you're looking for doesn't exist or you don't have permission to view it.
+            The return request you're looking for doesn't exist or you don't
+            have permission to view it.
           </p>
-          <Link href="/dashboard/returns">
+          <Link
+            href={`/dashboard/returns${shopSlug ? `?shopSlug=${shopSlug}` : ""}`}
+          >
             <Button>
               <ArrowLeft className="h-4 w-4 mr-2" />
               Back to Return Requests
@@ -188,7 +257,9 @@ export default function ReturnRequestDetailPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <Link href="/dashboard/returns">
+          <Link
+            href={`/dashboard/returns${shopSlug ? `?shopSlug=${shopSlug}` : ""}`}
+          >
             <Button variant="outline" size="sm">
               <ArrowLeft className="h-4 w-4 mr-2" />
               Back
@@ -199,13 +270,18 @@ export default function ReturnRequestDetailPage() {
               Return Request #{String(returnRequest.id).slice(-8)}
             </h1>
             <p className="text-muted-foreground">
-              Order {returnRequest.orderNumber} • Submitted {formatDistanceToNow(new Date(returnRequest.submittedAt), { addSuffix: true })}
+              Order {returnRequest.orderNumber} • Submitted{" "}
+              {formatDistanceToNow(new Date(returnRequest.submittedAt), {
+                addSuffix: true,
+              })}
             </p>
           </div>
         </div>
         <div className="flex items-center gap-2">
           {getStatusBadge(returnRequest.status)}
-          <Link href={`/dashboard/orders/${returnRequest.orderId}`}>
+          <Link
+            href={`/dashboard/orders/${returnRequest.orderId}${shopSlug ? `?shopSlug=${shopSlug}` : ""}`}
+          >
             <Button variant="outline" size="sm">
               <ExternalLink className="h-4 w-4 mr-2" />
               View Order
@@ -235,7 +311,10 @@ export default function ReturnRequestDetailPage() {
             <CardContent>
               <div className="space-y-4">
                 {returnRequest.returnItems.map((item, index) => (
-                  <div key={item.orderItemId || index} className="border rounded-md p-4">
+                  <div
+                    key={item.orderItemId || index}
+                    className="border rounded-md p-4"
+                  >
                     <div className="flex items-start gap-4">
                       {item.productImage && (
                         <img
@@ -254,8 +333,17 @@ export default function ReturnRequestDetailPage() {
                               </p>
                             )}
                             <div className="flex items-center gap-4 mt-2 text-sm text-muted-foreground">
-                              <span>Quantity: {item.returnQuantity}{item.maxQuantity ? ` of ${item.maxQuantity}` : ''}</span>
-                              {item.unitPrice && <span>Unit Price: {formatCurrency(item.unitPrice)}</span>}
+                              <span>
+                                Quantity: {item.returnQuantity}
+                                {item.maxQuantity
+                                  ? ` of ${item.maxQuantity}`
+                                  : ""}
+                              </span>
+                              {item.unitPrice && (
+                                <span>
+                                  Unit Price: {formatCurrency(item.unitPrice)}
+                                </span>
+                              )}
                             </div>
                           </div>
                           {item.totalPrice && (
@@ -271,7 +359,9 @@ export default function ReturnRequestDetailPage() {
                         </div>
                         {item.itemReason && (
                           <div className="mt-3 p-3 bg-muted rounded-lg">
-                            <p className="text-sm font-medium mb-1">Reason for return:</p>
+                            <p className="text-sm font-medium mb-1">
+                              Reason for return:
+                            </p>
                             <p className="text-sm">{item.itemReason}</p>
                           </div>
                         )}
@@ -280,11 +370,11 @@ export default function ReturnRequestDetailPage() {
                   </div>
                 ))}
               </div>
-              
+
               {calculateTotalRefundAmount() > 0 && (
                 <>
                   <Separator className="my-4" />
-                  
+
                   <div className="flex items-center justify-between text-lg font-semibold">
                     <span>Total Refund Amount:</span>
                     <span className="text-green-600">
@@ -320,7 +410,7 @@ export default function ReturnRequestDetailPage() {
                         {returnRequest.expectedRefund.paymentMethod}
                       </Badge>
                     </div>
-                    
+
                     {/* Refund Components */}
                     <div className="space-y-3">
                       {returnRequest.expectedRefund.monetaryRefund > 0 && (
@@ -329,11 +419,14 @@ export default function ReturnRequestDetailPage() {
                             Card Refund
                           </span>
                           <span className="text-xl font-bold text-green-600 dark:text-green-400">
-                            ${(returnRequest.expectedRefund.monetaryRefund || 0).toFixed(2)}
+                            $
+                            {(
+                              returnRequest.expectedRefund.monetaryRefund || 0
+                            ).toFixed(2)}
                           </span>
                         </div>
                       )}
-                      
+
                       {returnRequest.expectedRefund.pointsRefund > 0 && (
                         <>
                           <div className="flex items-center justify-between">
@@ -349,26 +442,40 @@ export default function ReturnRequestDetailPage() {
                               Points Value
                             </span>
                             <span className="text-sm font-semibold text-green-600 dark:text-green-400">
-                              ${(returnRequest.expectedRefund.pointsRefundValue || 0).toFixed(2)}
+                              $
+                              {(
+                                returnRequest.expectedRefund
+                                  .pointsRefundValue || 0
+                              ).toFixed(2)}
                             </span>
                           </div>
                         </>
                       )}
                     </div>
-                    
+
                     {/* Breakdown */}
                     <div className="pt-3 border-t space-y-2">
                       <div className="flex items-center justify-between text-sm">
-                        <span className="text-muted-foreground">Items Refund</span>
+                        <span className="text-muted-foreground">
+                          Items Refund
+                        </span>
                         <span className="font-medium">
-                          ${(returnRequest.expectedRefund.itemsRefund || 0).toFixed(2)}
+                          $
+                          {(
+                            returnRequest.expectedRefund.itemsRefund || 0
+                          ).toFixed(2)}
                         </span>
                       </div>
                       {returnRequest.expectedRefund.shippingRefund > 0 && (
                         <div className="flex items-center justify-between text-sm">
-                          <span className="text-muted-foreground">Shipping Refund</span>
+                          <span className="text-muted-foreground">
+                            Shipping Refund
+                          </span>
                           <span className="font-medium">
-                            ${(returnRequest.expectedRefund.shippingRefund || 0).toFixed(2)}
+                            $
+                            {(
+                              returnRequest.expectedRefund.shippingRefund || 0
+                            ).toFixed(2)}
                           </span>
                         </div>
                       )}
@@ -378,17 +485,22 @@ export default function ReturnRequestDetailPage() {
                         </Badge>
                       )}
                     </div>
-                    
+
                     <Separator />
-                    
+
                     {/* Total */}
                     <div className="flex items-center justify-between pt-2">
-                      <span className="font-bold text-lg">Total Refund Value</span>
+                      <span className="font-bold text-lg">
+                        Total Refund Value
+                      </span>
                       <span className="text-2xl font-bold text-green-600 dark:text-green-400">
-                        ${(returnRequest.expectedRefund.totalRefundValue || 0).toFixed(2)}
+                        $
+                        {(
+                          returnRequest.expectedRefund.totalRefundValue || 0
+                        ).toFixed(2)}
                       </span>
                     </div>
-                    
+
                     {/* Description */}
                     <div className="pt-3 border-t">
                       <p className="text-sm text-muted-foreground italic">
@@ -417,96 +529,104 @@ export default function ReturnRequestDetailPage() {
           </Card>
 
           {/* Media Attachments */}
-          {returnRequest.returnMedia && returnRequest.returnMedia.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <ImageIcon className="h-5 w-5" />
-                  Media Attachments ({returnRequest.returnMedia.length})
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                  {returnRequest.returnMedia.map((media) => (
-                    <div key={media.id} className="border rounded-md p-3 hover:shadow-md transition-shadow">
-                      <div className="flex items-center gap-2 mb-2">
-                        {isImageFile(media) ? (
-                          <ImageIcon className="h-4 w-4 text-blue-600" />
-                        ) : (
-                          <Video className="h-4 w-4 text-purple-600" />
-                        )}
-                        <span className="text-sm font-medium">
-                          {media.fileType || 'UNKNOWN'}
-                        </span>
-                      </div>
-                      
-                      {/* Media Preview */}
-                      <div 
-                        className="relative cursor-pointer group mb-2"
-                        onClick={() => openMediaViewer(media)}
+          {returnRequest.returnMedia &&
+            returnRequest.returnMedia.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <ImageIcon className="h-5 w-5" />
+                    Media Attachments ({returnRequest.returnMedia.length})
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                    {returnRequest.returnMedia.map((media) => (
+                      <div
+                        key={media.id}
+                        className="border rounded-md p-3 hover:shadow-md transition-shadow"
                       >
-                        {isImageFile(media) ? (
-                          <img
-                            src={media.fileUrl}
-                            alt="Return media"
-                            className="w-full h-24 object-cover rounded-lg group-hover:opacity-80 transition-opacity"
-                          />
-                        ) : isVideoFile(media) ? (
-                          <div className="relative w-full h-24 bg-gray-100 rounded-lg flex items-center justify-center group-hover:bg-gray-200 transition-colors">
-                            <Play className="h-8 w-8 text-gray-600" />
-                            <div className="absolute inset-0 bg-black bg-opacity-20 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                              <Play className="h-6 w-6 text-white" />
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="w-full h-24 bg-gray-100 rounded-lg flex items-center justify-center">
-                            <FileText className="h-8 w-8 text-gray-600" />
-                          </div>
-                        )}
-                        
-                        {/* Overlay for click indication */}
-                        <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-10 rounded-lg transition-all flex items-center justify-center">
-                          <div className="opacity-0 group-hover:opacity-100 transition-opacity">
-                            <div className="bg-white bg-opacity-90 rounded-full p-2">
-                              {isImageFile(media) ? (
-                                <ImageIcon className="h-4 w-4 text-gray-800" />
-                              ) : (
-                                <Play className="h-4 w-4 text-gray-800" />
-                              )}
-                            </div>
-                          </div>
+                        <div className="flex items-center gap-2 mb-2">
+                          {isImageFile(media) ? (
+                            <ImageIcon className="h-4 w-4 text-blue-600" />
+                          ) : (
+                            <Video className="h-4 w-4 text-purple-600" />
+                          )}
+                          <span className="text-sm font-medium">
+                            {media.fileType || "UNKNOWN"}
+                          </span>
                         </div>
-                      </div>
 
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs text-muted-foreground">
-                          {format(new Date(media.uploadedAt), 'MMM dd, yyyy')}
-                        </span>
-                        <div className="flex gap-1">
-                          <Button 
-                            variant="outline" 
-                            size="sm"
-                            onClick={() => openMediaViewer(media)}
-                          >
-                            {isImageFile(media) ? (
-                              <ImageIcon className="h-3 w-3" />
-                            ) : (
-                              <Play className="h-3 w-3" />
-                            )}
-                          </Button>
-                          <Button variant="outline" size="sm" asChild>
-                            <a href={media.fileUrl} target="_blank" rel="noopener noreferrer">
-                              <Download className="h-3 w-3" />
-                            </a>
-                          </Button>
+                        {/* Media Preview */}
+                        <div
+                          className="relative cursor-pointer group mb-2"
+                          onClick={() => openMediaViewer(media)}
+                        >
+                          {isImageFile(media) ? (
+                            <img
+                              src={media.fileUrl}
+                              alt="Return media"
+                              className="w-full h-24 object-cover rounded-lg group-hover:opacity-80 transition-opacity"
+                            />
+                          ) : isVideoFile(media) ? (
+                            <div className="relative w-full h-24 bg-gray-100 rounded-lg flex items-center justify-center group-hover:bg-gray-200 transition-colors">
+                              <Play className="h-8 w-8 text-gray-600" />
+                              <div className="absolute inset-0 bg-black bg-opacity-20 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                <Play className="h-6 w-6 text-white" />
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="w-full h-24 bg-gray-100 rounded-lg flex items-center justify-center">
+                              <FileText className="h-8 w-8 text-gray-600" />
+                            </div>
+                          )}
+
+                          {/* Overlay for click indication */}
+                          <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-10 rounded-lg transition-all flex items-center justify-center">
+                            <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+                              <div className="bg-white bg-opacity-90 rounded-full p-2">
+                                {isImageFile(media) ? (
+                                  <ImageIcon className="h-4 w-4 text-gray-800" />
+                                ) : (
+                                  <Play className="h-4 w-4 text-gray-800" />
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-muted-foreground">
+                            {format(new Date(media.uploadedAt), "MMM dd, yyyy")}
+                          </span>
+                          <div className="flex gap-1">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => openMediaViewer(media)}
+                            >
+                              {isImageFile(media) ? (
+                                <ImageIcon className="h-3 w-3" />
+                              ) : (
+                                <Play className="h-3 w-3" />
+                              )}
+                            </Button>
+                            <Button variant="outline" size="sm" asChild>
+                              <a
+                                href={media.fileUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                              >
+                                <Download className="h-3 w-3" />
+                              </a>
+                            </Button>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          )}
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
           {/* Decision Section */}
           {canMakeDecision && (
@@ -532,7 +652,7 @@ export default function ReturnRequestDetailPage() {
                   </div>
                   <div className="flex gap-3">
                     <Button
-                      onClick={() => handleDecision('APPROVED')}
+                      onClick={() => handleDecision("APPROVED")}
                       disabled={processing}
                       className="flex-1"
                     >
@@ -540,7 +660,7 @@ export default function ReturnRequestDetailPage() {
                       Approve Return
                     </Button>
                     <Button
-                      onClick={() => handleDecision('DENIED')}
+                      onClick={() => handleDecision("DENIED")}
                       disabled={processing}
                       variant="destructive"
                       className="flex-1"
@@ -569,7 +689,7 @@ export default function ReturnRequestDetailPage() {
               <div className="flex items-center gap-2">
                 <User className="h-4 w-4 text-muted-foreground" />
                 <span className="font-medium">
-                  {returnRequest.customerName || 'Guest User'}
+                  {returnRequest.customerName || "Guest User"}
                 </span>
               </div>
               {returnRequest.customerEmail && (
@@ -580,7 +700,9 @@ export default function ReturnRequestDetailPage() {
               )}
               <div className="flex items-center gap-2">
                 <Package className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm">Order: {returnRequest.orderNumber}</span>
+                <span className="text-sm">
+                  Order: {returnRequest.orderNumber}
+                </span>
               </div>
             </CardContent>
           </Card>
@@ -599,22 +721,34 @@ export default function ReturnRequestDetailPage() {
                 <div>
                   <p className="font-medium text-sm">Return Requested</p>
                   <p className="text-xs text-muted-foreground">
-                    {format(new Date(returnRequest.submittedAt), 'MMM dd, yyyy HH:mm')}
+                    {format(
+                      new Date(returnRequest.submittedAt),
+                      "MMM dd, yyyy HH:mm",
+                    )}
                   </p>
                 </div>
               </div>
-              
+
               {returnRequest.decisionAt && (
                 <div className="flex items-start gap-3">
-                  <div className={`w-2 h-2 rounded-full mt-2 ${
-                    returnRequest.status === 'APPROVED' ? 'bg-green-600' : 'bg-red-600'
-                  }`}></div>
+                  <div
+                    className={`w-2 h-2 rounded-full mt-2 ${
+                      returnRequest.status === "APPROVED"
+                        ? "bg-green-600"
+                        : "bg-red-600"
+                    }`}
+                  ></div>
                   <div>
                     <p className="font-medium text-sm">
-                      {returnRequest.status === 'APPROVED' ? 'Approved' : 'Decision Made'}
+                      {returnRequest.status === "APPROVED"
+                        ? "Approved"
+                        : "Decision Made"}
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      {format(new Date(returnRequest.decisionAt), 'MMM dd, yyyy HH:mm')}
+                      {format(
+                        new Date(returnRequest.decisionAt),
+                        "MMM dd, yyyy HH:mm",
+                      )}
                     </p>
                     {returnRequest.decisionNotes && (
                       <p className="text-xs mt-1 p-2 bg-muted rounded">
@@ -647,7 +781,10 @@ export default function ReturnRequestDetailPage() {
                   <div>
                     <p className="text-sm font-medium">Submitted:</p>
                     <p className="text-sm text-muted-foreground">
-                      {format(new Date(returnRequest.returnAppeal.submittedAt), 'MMM dd, yyyy HH:mm')}
+                      {format(
+                        new Date(returnRequest.returnAppeal.submittedAt),
+                        "MMM dd, yyyy HH:mm",
+                      )}
                     </p>
                   </div>
                   <Badge variant="outline">
@@ -683,7 +820,7 @@ export default function ReturnRequestDetailPage() {
               </Button>
             </div>
           </DialogHeader>
-          
+
           <div className="p-6 pt-0">
             {selectedMedia && (
               <div className="space-y-4">
@@ -715,18 +852,26 @@ export default function ReturnRequestDetailPage() {
                 {/* Media Info */}
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div>
-                    <span className="font-medium text-gray-700">File Type:</span>
-                    <p className="text-gray-600">{selectedMedia.fileType || 'Unknown'}</p>
+                    <span className="font-medium text-gray-700">
+                      File Type:
+                    </span>
+                    <p className="text-gray-600">
+                      {selectedMedia.fileType || "Unknown"}
+                    </p>
                   </div>
                   {selectedMedia.mimeType && (
                     <div>
-                      <span className="font-medium text-gray-700">MIME Type:</span>
+                      <span className="font-medium text-gray-700">
+                        MIME Type:
+                      </span>
                       <p className="text-gray-600">{selectedMedia.mimeType}</p>
                     </div>
                   )}
                   {selectedMedia.fileSize && (
                     <div>
-                      <span className="font-medium text-gray-700">File Size:</span>
+                      <span className="font-medium text-gray-700">
+                        File Size:
+                      </span>
                       <p className="text-gray-600">
                         {(selectedMedia.fileSize / 1024 / 1024).toFixed(2)} MB
                       </p>
@@ -735,12 +880,17 @@ export default function ReturnRequestDetailPage() {
                   <div>
                     <span className="font-medium text-gray-700">Uploaded:</span>
                     <p className="text-gray-600">
-                      {format(new Date(selectedMedia.uploadedAt), 'MMM dd, yyyy HH:mm')}
+                      {format(
+                        new Date(selectedMedia.uploadedAt),
+                        "MMM dd, yyyy HH:mm",
+                      )}
                     </p>
                   </div>
                   {selectedMedia.width && selectedMedia.height && (
                     <div>
-                      <span className="font-medium text-gray-700">Dimensions:</span>
+                      <span className="font-medium text-gray-700">
+                        Dimensions:
+                      </span>
                       <p className="text-gray-600">
                         {selectedMedia.width} × {selectedMedia.height}
                       </p>
@@ -751,9 +901,9 @@ export default function ReturnRequestDetailPage() {
                 {/* Actions */}
                 <div className="flex justify-center gap-2 pt-4 border-t">
                   <Button variant="outline" asChild>
-                    <a 
-                      href={selectedMedia.fileUrl} 
-                      target="_blank" 
+                    <a
+                      href={selectedMedia.fileUrl}
+                      target="_blank"
                       rel="noopener noreferrer"
                       className="flex items-center gap-2"
                     >
@@ -762,8 +912,8 @@ export default function ReturnRequestDetailPage() {
                     </a>
                   </Button>
                   <Button variant="outline" asChild>
-                    <a 
-                      href={selectedMedia.fileUrl} 
+                    <a
+                      href={selectedMedia.fileUrl}
                       download
                       className="flex items-center gap-2"
                     >
