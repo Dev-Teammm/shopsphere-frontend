@@ -50,6 +50,11 @@ import Link from "next/link";
 
 export default function ReturnRequestDetailPage() {
   const params = useParams();
+  const searchParams =
+    typeof window !== "undefined"
+      ? new URLSearchParams(window.location.search)
+      : null;
+  const shopSlug = searchParams?.get("shopSlug");
   const router = useRouter();
   const returnRequestId = params.id as string;
 
@@ -86,6 +91,12 @@ export default function ReturnRequestDetailPage() {
   const handleDecision = async (decision: "APPROVED" | "DENIED") => {
     if (!returnRequest) return;
 
+    // Validate rejection note if denying
+    if (decision === "DENIED" && !decisionNotes.trim()) {
+      toast.error("Please provide a reason for denying this return request");
+      return;
+    }
+
     try {
       setProcessing(true);
       const decisionData: ReturnDecisionDTO = {
@@ -100,9 +111,13 @@ export default function ReturnRequestDetailPage() {
       // Refresh the data
       await fetchReturnRequest();
       setDecisionNotes("");
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to process decision:", error);
-      toast.error("Failed to process decision");
+      const errorMessage =
+        error.response?.data?.message ||
+        error.message ||
+        "Failed to process decision";
+      toast.error(errorMessage);
     } finally {
       setProcessing(false);
     }
@@ -224,7 +239,9 @@ export default function ReturnRequestDetailPage() {
             The return request you're looking for doesn't exist or you don't
             have permission to view it.
           </p>
-          <Link href="/dashboard/returns">
+          <Link
+            href={`/dashboard/returns${shopSlug ? `?shopSlug=${shopSlug}` : ""}`}
+          >
             <Button>
               <ArrowLeft className="h-4 w-4 mr-2" />
               Back to Return Requests
@@ -240,7 +257,9 @@ export default function ReturnRequestDetailPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <Link href="/dashboard/returns">
+          <Link
+            href={`/dashboard/returns${shopSlug ? `?shopSlug=${shopSlug}` : ""}`}
+          >
             <Button variant="outline" size="sm">
               <ArrowLeft className="h-4 w-4 mr-2" />
               Back
@@ -260,7 +279,9 @@ export default function ReturnRequestDetailPage() {
         </div>
         <div className="flex items-center gap-2">
           {getStatusBadge(returnRequest.status)}
-          <Link href={`/dashboard/orders/${returnRequest.orderId}`}>
+          <Link
+            href={`/dashboard/orders/${returnRequest.orderId}${shopSlug ? `?shopSlug=${shopSlug}` : ""}`}
+          >
             <Button variant="outline" size="sm">
               <ExternalLink className="h-4 w-4 mr-2" />
               View Order

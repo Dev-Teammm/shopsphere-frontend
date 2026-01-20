@@ -589,7 +589,7 @@ export default function ReturnRequestsPage() {
                         <TableCell>
                           <div className="flex items-center gap-2">
                             <Link
-                              href={`/dashboard/returns/${returnRequest.id}`}
+                              href={`/dashboard/returns/${returnRequest.id}${shopSlug ? `?shopSlug=${shopSlug}` : ""}`}
                             >
                               <Button variant="outline" size="sm">
                                 <Eye className="h-4 w-4 mr-2" />
