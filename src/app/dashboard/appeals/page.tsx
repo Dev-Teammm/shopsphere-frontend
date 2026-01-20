@@ -2,16 +2,39 @@
 
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
@@ -39,8 +62,15 @@ import {
 import { format } from "date-fns";
 import { DateRange } from "react-day-picker";
 import { cn } from "@/lib/utils";
-import appealService, { AppealDTO, AppealFilterParams, AppealDecisionDTO } from "@/lib/services/appeal-service";
+import appealService, {
+  AppealDTO,
+  AppealFilterParams,
+  AppealDecisionDTO,
+} from "@/lib/services/appeal-service";
 import DeliveryAgentAssignmentModal from "@/components/DeliveryAgentAssignmentModal";
+import { useSearchParams } from "next/navigation";
+import { shopService } from "@/lib/services/shop-service";
+import { useEffect } from "react";
 
 export default function AppealsPage() {
   const [filters, setFilters] = useState<AppealFilterParams>({
@@ -48,17 +78,48 @@ export default function AppealsPage() {
     size: 10,
     sortBy: "submittedAt",
     sortDirection: "DESC",
-    status: "PENDING"
+    status: "PENDING",
   });
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedAppeal, setSelectedAppeal] = useState<AppealDTO | null>(null);
-  const [decisionDialog, setDecisionDialog] = useState<{ open: boolean; appeal: AppealDTO | null }>({
+  const [decisionDialog, setDecisionDialog] = useState<{
+    open: boolean;
+    appeal: AppealDTO | null;
+  }>({
     open: false,
-    appeal: null
+    appeal: null,
   });
   const [decisionNotes, setDecisionNotes] = useState("");
   const [dateRange, setDateRange] = useState<DateRange | undefined>();
   const [statsModalOpen, setStatsModalOpen] = useState(false);
+
+  const searchParams = useSearchParams();
+  const shopSlug = searchParams.get("shopSlug");
+  const [shopId, setShopId] = useState<string | null>(null);
+
+  // Fetch shop by slug to get shopId
+  const { data: shopData } = useQuery({
+    queryKey: ["shop", shopSlug],
+    queryFn: () => {
+      if (!shopSlug) return null;
+      return shopService.getShopBySlug(shopSlug);
+    },
+    enabled: !!shopSlug,
+  });
+
+  useEffect(() => {
+    if (shopData) {
+      setShopId(shopData.shopId);
+    }
+  }, [shopData]);
+
+  // Update filters when shopId changes
+  useEffect(() => {
+    if (shopId) {
+      setFilters((prev) => ({ ...prev, shopId }));
+    }
+  }, [shopId]);
+
   const [deliveryAssignmentModal, setDeliveryAssignmentModal] = useState<{
     open: boolean;
     returnRequestId: number | null;
@@ -73,20 +134,25 @@ export default function AppealsPage() {
   const queryClient = useQueryClient();
 
   // Fetch appeals data
-  const { data: appealsData, isLoading, error } = useQuery({
+  const {
+    data: appealsData,
+    isLoading,
+    error,
+  } = useQuery({
     queryKey: ["appeals", filters],
     queryFn: () => appealService.getAllAppeals(filters),
   });
 
   // Fetch appeal stats
   const { data: stats } = useQuery({
-    queryKey: ["appeal-stats"],
-    queryFn: () => appealService.getAppealStats(),
+    queryKey: ["appeal-stats", shopId],
+    queryFn: () => appealService.getAppealStats(shopId || undefined),
   });
 
   // Review appeal mutation
   const reviewMutation = useMutation({
-    mutationFn: (decisionData: AppealDecisionDTO) => appealService.reviewAppeal(decisionData),
+    mutationFn: (decisionData: AppealDecisionDTO) =>
+      appealService.reviewAppeal(decisionData),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["appeals"] });
       queryClient.invalidateQueries({ queryKey: ["appeal-stats"] });
@@ -101,34 +167,36 @@ export default function AppealsPage() {
   });
 
   const handleFilterChange = (key: keyof AppealFilterParams, value: any) => {
-    setFilters(prev => ({ ...prev, [key]: value, page: 0 }));
+    setFilters((prev) => ({ ...prev, [key]: value, page: 0 }));
   };
 
   const handleSearch = () => {
     if (searchTerm.trim()) {
-      setFilters(prev => ({ 
-        ...prev, 
+      setFilters((prev) => ({
+        ...prev,
         customerName: searchTerm.includes("@") ? undefined : searchTerm,
-        orderCode: searchTerm.startsWith("#") ? searchTerm.substring(1) : undefined,
-        page: 0 
+        orderCode: searchTerm.startsWith("#")
+          ? searchTerm.substring(1)
+          : undefined,
+        page: 0,
       }));
     } else {
-      setFilters(prev => ({ 
-        ...prev, 
-        customerName: undefined, 
-        orderCode: undefined, 
-        page: 0 
+      setFilters((prev) => ({
+        ...prev,
+        customerName: undefined,
+        orderCode: undefined,
+        page: 0,
       }));
     }
   };
 
   const handleDateRangeChange = (range: DateRange | undefined) => {
     setDateRange(range);
-    setFilters(prev => ({
+    setFilters((prev) => ({
       ...prev,
       fromDate: range?.from ? format(range.from, "yyyy-MM-dd") : undefined,
       toDate: range?.to ? format(range.to, "yyyy-MM-dd") : undefined,
-      page: 0
+      page: 0,
     }));
   };
 
@@ -138,7 +206,7 @@ export default function AppealsPage() {
     reviewMutation.mutate({
       appealId: decisionDialog.appeal.id,
       decision,
-      decisionNotes: decisionNotes.trim() || undefined
+      decisionNotes: decisionNotes.trim() || undefined,
     });
   };
 
@@ -164,11 +232,26 @@ export default function AppealsPage() {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "PENDING":
-        return <Badge variant="secondary" className="bg-yellow-100 text-yellow-800"><Clock className="w-3 h-3 mr-1" />Pending</Badge>;
+        return (
+          <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">
+            <Clock className="w-3 h-3 mr-1" />
+            Pending
+          </Badge>
+        );
       case "APPROVED":
-        return <Badge variant="secondary" className="bg-green-100 text-green-800"><CheckCircle className="w-3 h-3 mr-1" />Approved</Badge>;
+        return (
+          <Badge variant="secondary" className="bg-green-100 text-green-800">
+            <CheckCircle className="w-3 h-3 mr-1" />
+            Approved
+          </Badge>
+        );
       case "DENIED":
-        return <Badge variant="secondary" className="bg-red-100 text-red-800"><XCircle className="w-3 h-3 mr-1" />Denied</Badge>;
+        return (
+          <Badge variant="secondary" className="bg-red-100 text-red-800">
+            <XCircle className="w-3 h-3 mr-1" />
+            Denied
+          </Badge>
+        );
       default:
         return <Badge variant="outline">{status}</Badge>;
     }
@@ -205,7 +288,9 @@ export default function AppealsPage() {
         <div className="text-center">
           <AlertCircle className="h-16 w-16 text-red-500 mx-auto mb-4" />
           <h3 className="text-lg font-semibold mb-2">Error Loading Appeals</h3>
-          <p className="text-muted-foreground">Please try refreshing the page</p>
+          <p className="text-muted-foreground">
+            Please try refreshing the page
+          </p>
         </div>
       </div>
     );
@@ -224,7 +309,11 @@ export default function AppealsPage() {
             Review and manage customer return request appeals
           </p>
         </div>
-        <Button onClick={exportAppeals} variant="outline" className="flex items-center gap-2">
+        <Button
+          onClick={exportAppeals}
+          variant="outline"
+          className="flex items-center gap-2"
+        >
           <Download className="h-4 w-4" />
           Export CSV
         </Button>
@@ -235,13 +324,16 @@ export default function AppealsPage() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <div>
-              <CardTitle className="text-lg font-semibold">Appeals Overview</CardTitle>
+              <CardTitle className="text-lg font-semibold">
+                Appeals Overview
+              </CardTitle>
               <CardDescription>
-                {stats.pendingCount} pending • {stats.approvedCount} approved • {stats.deniedCount} denied
+                {stats.pendingCount} pending • {stats.approvedCount} approved •{" "}
+                {stats.deniedCount} denied
               </CardDescription>
             </div>
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               onClick={() => setStatsModalOpen(true)}
               className="flex items-center gap-2"
             >
@@ -283,7 +375,12 @@ export default function AppealsPage() {
               <Label>Status</Label>
               <Select
                 value={filters.status || "PENDING"}
-                onValueChange={(value) => handleFilterChange("status", value === "all" ? undefined : value)}
+                onValueChange={(value) =>
+                  handleFilterChange(
+                    "status",
+                    value === "all" ? undefined : value,
+                  )
+                }
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Pending" />
@@ -297,7 +394,6 @@ export default function AppealsPage() {
               </Select>
             </div>
 
-
             {/* Date Range */}
             <div className="space-y-2">
               <Label>Date Range</Label>
@@ -307,7 +403,7 @@ export default function AppealsPage() {
                     variant="outline"
                     className={cn(
                       "w-full justify-start text-left font-normal",
-                      !dateRange?.from && "text-muted-foreground"
+                      !dateRange?.from && "text-muted-foreground",
                     )}
                   >
                     <CalendarIcon className="mr-2 h-4 w-4" />
@@ -349,7 +445,7 @@ export default function AppealsPage() {
                   size: 10,
                   sortBy: "submittedAt",
                   sortDirection: "DESC",
-                  status: "PENDING"
+                  status: "PENDING",
                 });
                 setSearchTerm("");
                 setDateRange(undefined);
@@ -366,7 +462,8 @@ export default function AppealsPage() {
         <CardHeader>
           <CardTitle>Appeals ({appealsData?.totalElements || 0})</CardTitle>
           <CardDescription>
-            Showing {appealsData?.content.length || 0} of {appealsData?.totalElements || 0} appeals
+            Showing {appealsData?.content?.length || 0} of{" "}
+            {appealsData?.totalElements || 0} appeals
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -375,29 +472,55 @@ export default function AppealsPage() {
               <table className="w-full">
                 <thead>
                   <tr className="border-b bg-muted/50">
-                    <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Appeal ID</th>
-                    <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Customer</th>
-                    <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Order</th>
-                    <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Reason</th>
-                    <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Status</th>
-                    <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Level</th>
-                    <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Submitted</th>
-                    <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Actions</th>
+                    <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">
+                      Appeal ID
+                    </th>
+                    <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">
+                      Customer
+                    </th>
+                    <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">
+                      Order
+                    </th>
+                    <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">
+                      Reason
+                    </th>
+                    <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">
+                      Status
+                    </th>
+                    <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">
+                      Level
+                    </th>
+                    <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">
+                      Submitted
+                    </th>
+                    <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">
+                      Actions
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
-                  {appealsData?.content.map((appeal) => (
-                    <tr key={appeal.id} className="border-b transition-colors hover:bg-muted/50">
+                  {(appealsData?.content || []).map((appeal) => (
+                    <tr
+                      key={appeal.id}
+                      className="border-b transition-colors hover:bg-muted/50"
+                    >
                       <td className="p-4 align-middle">
                         <div className="font-medium">#{appeal.id}</div>
-                        <div className="text-sm text-muted-foreground">Return #{appeal.returnRequestId}</div>
+                        <div className="text-sm text-muted-foreground">
+                          Return #{appeal.returnRequestId}
+                        </div>
                       </td>
                       <td className="p-4 align-middle">
                         <div className="flex items-center gap-2">
                           <User className="h-4 w-4 text-muted-foreground" />
                           <div>
-                            <div className="font-medium">{appeal.returnRequest?.customerName || "Guest Customer"}</div>
-                            <div className="text-sm text-muted-foreground">{appeal.returnRequest?.customerEmail}</div>
+                            <div className="font-medium">
+                              {appeal.returnRequest?.customerName ||
+                                "Guest Customer"}
+                            </div>
+                            <div className="text-sm text-muted-foreground">
+                              {appeal.returnRequest?.customerEmail}
+                            </div>
                           </div>
                         </div>
                       </td>
@@ -405,16 +528,24 @@ export default function AppealsPage() {
                         <div className="flex items-center gap-2">
                           <Package className="h-4 w-4 text-muted-foreground" />
                           <div>
-                            <div className="font-medium">#{appeal.returnRequest?.orderCode}</div>
-                            <div className="text-sm text-muted-foreground">Order #{appeal.returnRequest?.orderId}</div>
+                            <div className="font-medium">
+                              #{appeal.returnRequest?.orderCode}
+                            </div>
+                            <div className="text-sm text-muted-foreground">
+                              Order #{appeal.returnRequest?.orderId}
+                            </div>
                           </div>
                         </div>
                       </td>
                       <td className="p-4 align-middle">
                         <div className="max-w-xs">
-                          <div className="font-medium truncate">{appeal.reason}</div>
+                          <div className="font-medium truncate">
+                            {appeal.reason}
+                          </div>
                           {appeal.description && (
-                            <div className="text-sm text-muted-foreground truncate">{appeal.description}</div>
+                            <div className="text-sm text-muted-foreground truncate">
+                              {appeal.description}
+                            </div>
                           )}
                         </div>
                       </td>
@@ -445,7 +576,9 @@ export default function AppealsPage() {
                             <Button
                               variant="outline"
                               size="sm"
-                              onClick={() => setDecisionDialog({ open: true, appeal })}
+                              onClick={() =>
+                                setDecisionDialog({ open: true, appeal })
+                              }
                             >
                               <MoreHorizontal className="h-4 w-4" />
                             </Button>
@@ -458,7 +591,9 @@ export default function AppealsPage() {
                               className="flex items-center gap-1"
                             >
                               <Truck className="h-4 w-4" />
-                              <span className="hidden sm:inline">Assign Agent</span>
+                              <span className="hidden sm:inline">
+                                Assign Agent
+                              </span>
                             </Button>
                           )}
                         </div>
@@ -480,7 +615,12 @@ export default function AppealsPage() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => handleFilterChange("page", Math.max(0, (filters.page || 0) - 1))}
+                  onClick={() =>
+                    handleFilterChange(
+                      "page",
+                      Math.max(0, (filters.page || 0) - 1),
+                    )
+                  }
                   disabled={appealsData.first}
                 >
                   Previous
@@ -488,7 +628,9 @@ export default function AppealsPage() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => handleFilterChange("page", (filters.page || 0) + 1)}
+                  onClick={() =>
+                    handleFilterChange("page", (filters.page || 0) + 1)
+                  }
                   disabled={appealsData.last}
                 >
                   Next
@@ -500,7 +642,10 @@ export default function AppealsPage() {
       </Card>
 
       {/* Appeal Detail Dialog */}
-      <Dialog open={!!selectedAppeal} onOpenChange={() => setSelectedAppeal(null)}>
+      <Dialog
+        open={!!selectedAppeal}
+        onOpenChange={() => setSelectedAppeal(null)}
+      >
         <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Appeal Details - #{selectedAppeal?.id}</DialogTitle>
@@ -523,15 +668,24 @@ export default function AppealsPage() {
                 <div className="space-y-2">
                   <Label className="text-sm font-medium">Customer</Label>
                   <div>
-                    <div className="font-medium">{selectedAppeal.returnRequest?.customerName || "Guest Customer"}</div>
-                    <div className="text-sm text-muted-foreground">{selectedAppeal.returnRequest?.customerEmail}</div>
+                    <div className="font-medium">
+                      {selectedAppeal.returnRequest?.customerName ||
+                        "Guest Customer"}
+                    </div>
+                    <div className="text-sm text-muted-foreground">
+                      {selectedAppeal.returnRequest?.customerEmail}
+                    </div>
                   </div>
                 </div>
                 <div className="space-y-2">
                   <Label className="text-sm font-medium">Order</Label>
                   <div>
-                    <div className="font-medium">#{selectedAppeal.returnRequest?.orderCode}</div>
-                    <div className="text-sm text-muted-foreground">Order #{selectedAppeal.returnRequest?.orderId}</div>
+                    <div className="font-medium">
+                      #{selectedAppeal.returnRequest?.orderCode}
+                    </div>
+                    <div className="text-sm text-muted-foreground">
+                      Order #{selectedAppeal.returnRequest?.orderId}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -540,14 +694,23 @@ export default function AppealsPage() {
               <div className="p-4 bg-blue-50 rounded-md border border-blue-200">
                 <div className="flex items-center justify-between">
                   <div>
-                    <h4 className="font-medium text-blue-900">Related Return Request</h4>
-                    <p className="text-sm text-blue-700">View the original return request that was appealed</p>
+                    <h4 className="font-medium text-blue-900">
+                      Related Return Request
+                    </h4>
+                    <p className="text-sm text-blue-700">
+                      View the original return request that was appealed
+                    </p>
                   </div>
                   <Button
                     variant="outline"
                     size="sm"
                     className="border-blue-300 text-blue-700 hover:bg-blue-100"
-                    onClick={() => window.open(`/dashboard/returns/${selectedAppeal.returnRequestId}`, '_blank')}
+                    onClick={() =>
+                      window.open(
+                        `/dashboard/returns/${selectedAppeal.returnRequestId}`,
+                        "_blank",
+                      )
+                    }
                   >
                     <ExternalLink className="h-4 w-4 mr-2" />
                     View Return Request
@@ -576,103 +739,152 @@ export default function AppealsPage() {
               </div>
 
               {/* Media Attachments */}
-              {selectedAppeal.appealMedia && selectedAppeal.appealMedia.length > 0 && (
-                <>
-                  <Separator />
-                  <div className="space-y-4">
-                    <Label className="text-sm font-medium">Media Attachments ({selectedAppeal.appealMedia.length})</Label>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                      {selectedAppeal.appealMedia.map((media) => {
-                        const isImage = media.fileType?.toLowerCase().includes('image') || 
-                                       media.fileName?.toLowerCase().match(/\.(jpg|jpeg|png|gif|bmp|webp)$/);
-                        const isVideo = media.fileType?.toLowerCase().includes('video') || 
-                                       media.fileName?.toLowerCase().match(/\.(mp4|mov|avi|mkv|webm)$/);
-                        
-                        return (
-                          <div key={media.id} className="border rounded-md overflow-hidden bg-white">
-                            {/* Media Preview */}
-                            <div className="aspect-video bg-gray-100 flex items-center justify-center relative">
-                              {isImage ? (
-                                <img
-                                  src={media.fileUrl}
-                                  alt={media.fileName}
-                                  className="w-full h-full object-cover cursor-pointer"
-                                  onClick={() => window.open(media.fileUrl, '_blank')}
-                                />
-                              ) : isVideo ? (
-                                <div className="relative w-full h-full">
-                                  <video
+              {selectedAppeal.appealMedia &&
+                selectedAppeal.appealMedia.length > 0 && (
+                  <>
+                    <Separator />
+                    <div className="space-y-4">
+                      <Label className="text-sm font-medium">
+                        Media Attachments ({selectedAppeal.appealMedia.length})
+                      </Label>
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {selectedAppeal.appealMedia.map((media) => {
+                          const isImage =
+                            media.fileType?.toLowerCase().includes("image") ||
+                            media.fileName
+                              ?.toLowerCase()
+                              .match(/\.(jpg|jpeg|png|gif|bmp|webp)$/);
+                          const isVideo =
+                            media.fileType?.toLowerCase().includes("video") ||
+                            media.fileName
+                              ?.toLowerCase()
+                              .match(/\.(mp4|mov|avi|mkv|webm)$/);
+
+                          return (
+                            <div
+                              key={media.id}
+                              className="border rounded-md overflow-hidden bg-white"
+                            >
+                              {/* Media Preview */}
+                              <div className="aspect-video bg-gray-100 flex items-center justify-center relative">
+                                {isImage ? (
+                                  <img
                                     src={media.fileUrl}
-                                    className="w-full h-full object-cover"
-                                    controls
-                                    preload="metadata"
+                                    alt={media.fileName}
+                                    className="w-full h-full object-cover cursor-pointer"
+                                    onClick={() =>
+                                      window.open(media.fileUrl, "_blank")
+                                    }
                                   />
+                                ) : isVideo ? (
+                                  <div className="relative w-full h-full">
+                                    <video
+                                      src={media.fileUrl}
+                                      className="w-full h-full object-cover"
+                                      controls
+                                      preload="metadata"
+                                    />
+                                  </div>
+                                ) : (
+                                  <div className="flex flex-col items-center justify-center text-gray-500">
+                                    <File className="h-12 w-12 mb-2" />
+                                    <span className="text-sm">File</span>
+                                  </div>
+                                )}
+
+                                {/* File Type Badge */}
+                                <div className="absolute top-2 right-2">
+                                  <Badge
+                                    variant="secondary"
+                                    className="text-xs"
+                                  >
+                                    {isImage ? (
+                                      <>
+                                        <Image className="h-3 w-3 mr-1" />
+                                        IMG
+                                      </>
+                                    ) : isVideo ? (
+                                      <>
+                                        <Video className="h-3 w-3 mr-1" />
+                                        VID
+                                      </>
+                                    ) : (
+                                      <>
+                                        <File className="h-3 w-3 mr-1" />
+                                        FILE
+                                      </>
+                                    )}
+                                  </Badge>
                                 </div>
-                              ) : (
-                                <div className="flex flex-col items-center justify-center text-gray-500">
-                                  <File className="h-12 w-12 mb-2" />
-                                  <span className="text-sm">File</span>
+                              </div>
+
+                              {/* File Info */}
+                              <div className="p-3">
+                                <div className="text-sm font-medium truncate mb-1">
+                                  {media.fileName}
                                 </div>
-                              )}
-                              
-                              {/* File Type Badge */}
-                              <div className="absolute top-2 right-2">
-                                <Badge variant="secondary" className="text-xs">
-                                  {isImage ? (
-                                    <><Image className="h-3 w-3 mr-1" />IMG</>
-                                  ) : isVideo ? (
-                                    <><Video className="h-3 w-3 mr-1" />VID</>
-                                  ) : (
-                                    <><File className="h-3 w-3 mr-1" />FILE</>
+                                <div className="text-xs text-muted-foreground mb-2">
+                                  {media.fileType}
+                                </div>
+                                <div className="text-xs text-muted-foreground mb-3">
+                                  Uploaded:{" "}
+                                  {format(
+                                    new Date(media.uploadedAt),
+                                    "MMM dd, yyyy HH:mm",
                                   )}
-                                </Badge>
+                                </div>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="w-full"
+                                  onClick={() =>
+                                    window.open(media.fileUrl, "_blank")
+                                  }
+                                >
+                                  <ExternalLink className="h-3 w-3 mr-2" />
+                                  Open in New Tab
+                                </Button>
                               </div>
                             </div>
-                            
-                            {/* File Info */}
-                            <div className="p-3">
-                              <div className="text-sm font-medium truncate mb-1">{media.fileName}</div>
-                              <div className="text-xs text-muted-foreground mb-2">{media.fileType}</div>
-                              <div className="text-xs text-muted-foreground mb-3">
-                                Uploaded: {format(new Date(media.uploadedAt), "MMM dd, yyyy HH:mm")}
-                              </div>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="w-full"
-                                onClick={() => window.open(media.fileUrl, '_blank')}
-                              >
-                                <ExternalLink className="h-3 w-3 mr-2" />
-                                Open in New Tab
-                              </Button>
-                            </div>
-                          </div>
-                        );
-                      })}
+                          );
+                        })}
+                      </div>
                     </div>
-                  </div>
-                </>
-              )}
+                  </>
+                )}
 
               {/* Decision Info */}
               {selectedAppeal.decisionAt && (
                 <>
                   <Separator />
                   <div className="space-y-4">
-                    <Label className="text-sm font-medium">Decision Information</Label>
+                    <Label className="text-sm font-medium">
+                      Decision Information
+                    </Label>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <Label className="text-xs text-muted-foreground">Decision Date</Label>
-                        <div>{format(new Date(selectedAppeal.decisionAt), "MMM dd, yyyy HH:mm")}</div>
+                        <Label className="text-xs text-muted-foreground">
+                          Decision Date
+                        </Label>
+                        <div>
+                          {format(
+                            new Date(selectedAppeal.decisionAt),
+                            "MMM dd, yyyy HH:mm",
+                          )}
+                        </div>
                       </div>
                       <div className="space-y-2">
-                        <Label className="text-xs text-muted-foreground">Status</Label>
+                        <Label className="text-xs text-muted-foreground">
+                          Status
+                        </Label>
                         <div>{getStatusBadge(selectedAppeal.status)}</div>
                       </div>
                     </div>
                     {selectedAppeal.decisionNotes && (
                       <div className="space-y-2">
-                        <Label className="text-xs text-muted-foreground">Decision Notes</Label>
+                        <Label className="text-xs text-muted-foreground">
+                          Decision Notes
+                        </Label>
                         <div className="p-3 bg-muted rounded-md">
                           {selectedAppeal.decisionNotes}
                         </div>
@@ -687,7 +899,10 @@ export default function AppealsPage() {
       </Dialog>
 
       {/* Decision Dialog */}
-      <Dialog open={decisionDialog.open} onOpenChange={(open) => setDecisionDialog({ open, appeal: null })}>
+      <Dialog
+        open={decisionDialog.open}
+        onOpenChange={(open) => setDecisionDialog({ open, appeal: null })}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Make Appeal Decision</DialogTitle>
@@ -735,7 +950,9 @@ export default function AppealsPage() {
       {/* Delivery Agent Assignment Modal */}
       <DeliveryAgentAssignmentModal
         open={deliveryAssignmentModal.open}
-        onOpenChange={(open) => setDeliveryAssignmentModal({ open, returnRequestId: null })}
+        onOpenChange={(open) =>
+          setDeliveryAssignmentModal({ open, returnRequestId: null })
+        }
         returnRequestId={deliveryAssignmentModal.returnRequestId!}
         returnRequestDetails={deliveryAssignmentModal.returnRequestDetails}
         onAssignmentComplete={handleAssignmentComplete}
@@ -750,7 +967,8 @@ export default function AppealsPage() {
               Appeals Statistics
             </DialogTitle>
             <DialogDescription>
-              Comprehensive overview of appeal metrics and performance indicators
+              Comprehensive overview of appeal metrics and performance
+              indicators
             </DialogDescription>
           </DialogHeader>
           {stats && (
@@ -759,11 +977,15 @@ export default function AppealsPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 <Card>
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Pending Appeals</CardTitle>
+                    <CardTitle className="text-sm font-medium">
+                      Pending Appeals
+                    </CardTitle>
                     <Clock className="h-4 w-4 text-yellow-500" />
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold text-yellow-600">{stats.pendingCount}</div>
+                    <div className="text-2xl font-bold text-yellow-600">
+                      {stats.pendingCount}
+                    </div>
                     <p className="text-xs text-muted-foreground">
                       Appeals awaiting review
                     </p>
@@ -772,11 +994,15 @@ export default function AppealsPage() {
 
                 <Card>
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Approved Appeals</CardTitle>
+                    <CardTitle className="text-sm font-medium">
+                      Approved Appeals
+                    </CardTitle>
                     <CheckCircle className="h-4 w-4 text-green-500" />
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold text-green-600">{stats.approvedCount}</div>
+                    <div className="text-2xl font-bold text-green-600">
+                      {stats.approvedCount}
+                    </div>
                     <p className="text-xs text-muted-foreground">
                       Successfully approved
                     </p>
@@ -785,11 +1011,15 @@ export default function AppealsPage() {
 
                 <Card>
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Denied Appeals</CardTitle>
+                    <CardTitle className="text-sm font-medium">
+                      Denied Appeals
+                    </CardTitle>
                     <XCircle className="h-4 w-4 text-red-500" />
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold text-red-600">{stats.deniedCount}</div>
+                    <div className="text-2xl font-bold text-red-600">
+                      {stats.deniedCount}
+                    </div>
                     <p className="text-xs text-muted-foreground">
                       Appeals denied
                     </p>
@@ -798,11 +1028,15 @@ export default function AppealsPage() {
 
                 <Card>
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Recent Appeals</CardTitle>
+                    <CardTitle className="text-sm font-medium">
+                      Recent Appeals
+                    </CardTitle>
                     <FileText className="h-4 w-4 text-blue-500" />
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold text-blue-600">{stats.recentCount}</div>
+                    <div className="text-2xl font-bold text-blue-600">
+                      {stats.recentCount}
+                    </div>
                     <p className="text-xs text-muted-foreground">
                       Last 30 days
                     </p>
@@ -811,11 +1045,15 @@ export default function AppealsPage() {
 
                 <Card>
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Urgent Appeals</CardTitle>
+                    <CardTitle className="text-sm font-medium">
+                      Urgent Appeals
+                    </CardTitle>
                     <AlertCircle className="h-4 w-4 text-orange-500" />
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold text-orange-600">{stats.urgentCount}</div>
+                    <div className="text-2xl font-bold text-orange-600">
+                      {stats.urgentCount}
+                    </div>
                     <p className="text-xs text-muted-foreground">
                       Pending &gt; 7 days
                     </p>
@@ -824,11 +1062,15 @@ export default function AppealsPage() {
 
                 <Card>
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Approval Rate</CardTitle>
+                    <CardTitle className="text-sm font-medium">
+                      Approval Rate
+                    </CardTitle>
                     <CheckCircle className="h-4 w-4 text-emerald-500" />
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold text-emerald-600">{stats.approvalRate.toFixed(1)}%</div>
+                    <div className="text-2xl font-bold text-emerald-600">
+                      {stats.approvalRate.toFixed(1)}%
+                    </div>
                     <p className="text-xs text-muted-foreground">
                       Success rate
                     </p>
@@ -847,8 +1089,14 @@ export default function AppealsPage() {
                       </div>
                       <div>
                         <h4 className="font-medium">Total Appeals</h4>
-                        <p className="text-2xl font-bold">{stats.pendingCount + stats.approvedCount + stats.deniedCount}</p>
-                        <p className="text-sm text-muted-foreground">All time</p>
+                        <p className="text-2xl font-bold">
+                          {stats.pendingCount +
+                            stats.approvedCount +
+                            stats.deniedCount}
+                        </p>
+                        <p className="text-sm text-muted-foreground">
+                          All time
+                        </p>
                       </div>
                     </div>
                   </Card>
@@ -861,10 +1109,14 @@ export default function AppealsPage() {
                       <div>
                         <h4 className="font-medium">Processing Status</h4>
                         <p className="text-2xl font-bold">
-                          {stats.pendingCount > 0 ? `${stats.pendingCount} pending` : 'Up to date'}
+                          {stats.pendingCount > 0
+                            ? `${stats.pendingCount} pending`
+                            : "Up to date"}
                         </p>
                         <p className="text-sm text-muted-foreground">
-                          {stats.urgentCount > 0 ? `${stats.urgentCount} need urgent attention` : 'No urgent appeals'}
+                          {stats.urgentCount > 0
+                            ? `${stats.urgentCount} need urgent attention`
+                            : "No urgent appeals"}
                         </p>
                       </div>
                     </div>
@@ -878,10 +1130,16 @@ export default function AppealsPage() {
                   Statistics updated in real-time
                 </div>
                 <div className="flex gap-2">
-                  <Button variant="outline" onClick={() => setStatsModalOpen(false)}>
+                  <Button
+                    variant="outline"
+                    onClick={() => setStatsModalOpen(false)}
+                  >
                     Close
                   </Button>
-                  <Button onClick={exportAppeals} className="flex items-center gap-2">
+                  <Button
+                    onClick={exportAppeals}
+                    className="flex items-center gap-2"
+                  >
                     <Download className="h-4 w-4" />
                     Export Data
                   </Button>

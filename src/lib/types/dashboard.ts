@@ -9,6 +9,8 @@ export interface RecentOrderDTO {
 export interface AlertsDTO {
   lowStockProducts: number;
   pendingOrders: number;
+  pendingReturns: number;
+  pendingAppeals: number;
 }
 
 export interface DashboardResponseDTO {

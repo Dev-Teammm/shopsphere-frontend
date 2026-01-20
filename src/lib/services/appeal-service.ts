@@ -44,15 +44,16 @@ export interface AppealDecisionDTO {
 }
 
 export interface AppealFilterParams {
-  status?: "PENDING" | "APPROVED" | "DENIED";
-  fromDate?: string;
-  toDate?: string;
-  customerName?: string;
-  orderCode?: string;
   page?: number;
   size?: number;
   sortBy?: string;
   sortDirection?: "ASC" | "DESC";
+  status?: string;
+  customerName?: string;
+  orderCode?: string;
+  fromDate?: string;
+  toDate?: string;
+  shopId?: string;
 }
 
 export interface AppealPageResponse {
@@ -80,24 +81,47 @@ class AppealService {
   /**
    * Get all appeals with filtering and pagination
    */
-  async getAllAppeals(params: AppealFilterParams = {}): Promise<AppealPageResponse> {
-    const response = await apiClient.get(`${this.baseUrl}`, { params });
-    return response.data;
+  async getAllAppeals(
+    params: AppealFilterParams = {},
+  ): Promise<AppealPageResponse> {
+    try {
+      const response = await apiClient.get<AppealPageResponse>(this.baseUrl, {
+        params: {
+          ...params,
+          shopId: params.shopId,
+        },
+      });
+      return response.data;
+    } catch (error) {
+      console.error("Error fetching appeals:", error);
+      throw error;
+    }
   }
 
   /**
    * Get appeal by ID
    */
   async getAppealById(appealId: number): Promise<AppealDTO> {
-    const response = await apiClient.get(`${this.baseUrl}/${appealId}`);
-    return response.data;
+    try {
+      const response = await apiClient.get<AppealDTO>(
+        `${this.baseUrl}/${appealId}`,
+      );
+      return response.data;
+    } catch (error) {
+      console.error("Error fetching appeal details:", error);
+      throw error;
+    }
   }
 
   /**
    * Get appeal by return request ID
    */
-  async getAppealByReturnRequestId(returnRequestId: number): Promise<AppealDTO> {
-    const response = await apiClient.get(`${this.baseUrl}/return-request/${returnRequestId}`);
+  async getAppealByReturnRequestId(
+    returnRequestId: number,
+  ): Promise<AppealDTO> {
+    const response = await apiClient.get(
+      `${this.baseUrl}/return-request/${returnRequestId}`,
+    );
     return response.data;
   }
 
@@ -105,24 +129,47 @@ class AppealService {
    * Review and make decision on appeal
    */
   async reviewAppeal(decisionData: AppealDecisionDTO): Promise<AppealDTO> {
-    const response = await apiClient.post(`${this.baseUrl}/review`, decisionData);
+    const response = await apiClient.post(
+      `${this.baseUrl}/review`,
+      decisionData,
+    );
     return response.data;
   }
 
   /**
    * Get appeal statistics
    */
-  async getAppealStats(): Promise<AppealStats> {
-    const response = await apiClient.get(`${this.baseUrl}/stats`);
-    return response.data;
+  async getAppealStats(shopId?: string): Promise<AppealStats> {
+    try {
+      const response = await apiClient.get<AppealStats>(
+        `${this.baseUrl}/stats`,
+        {
+          params: { shopId },
+        },
+      );
+      return response.data;
+    } catch (error) {
+      console.error("Error fetching appeal stats:", error);
+      throw error;
+    }
   }
 
   /**
    * Get pending appeals count for sidebar badge
    */
-  async getPendingAppealsCount(): Promise<number> {
-    const response = await apiClient.get(`${this.baseUrl}/pending/count`);
-    return response.data;
+  async getPendingAppealsCount(shopId?: string): Promise<number> {
+    try {
+      const response = await apiClient.get<number>(
+        `${this.baseUrl}/pending/count`,
+        {
+          params: { shopId },
+        },
+      );
+      return response.data;
+    } catch (error) {
+      console.error("Error fetching pending appeals count:", error);
+      return 0;
+    }
   }
 
   /**
@@ -131,7 +178,7 @@ class AppealService {
   async exportAppeals(params: AppealFilterParams = {}): Promise<Blob> {
     const response = await apiClient.get(`${this.baseUrl}/export`, {
       params,
-      responseType: 'blob'
+      responseType: "blob",
     });
     return response.data;
   }

@@ -23,7 +23,7 @@ export interface ReturnRequestDTO {
   decisionNotes?: string | null;
   createdAt: string;
   updatedAt: string;
-  
+
   // Related data
   returnMedia?: ReturnMediaDTO[];
   returnItems: ReturnItemDTO[];
@@ -31,12 +31,16 @@ export interface ReturnRequestDTO {
   customerName?: string;
   customerEmail?: string;
   orderNumber: string;
-  
+
   // Helper fields
   canBeAppealed: boolean;
   daysUntilExpiry: number;
   eligibleForReturn: boolean;
   expectedRefund?: ExpectedRefundDTO;
+  totalAmount?: number;
+  shopId?: string;
+  shopName?: string;
+  shopSlug?: string;
 }
 
 export interface ReturnItemDTO {
@@ -82,11 +86,7 @@ export interface ReturnAppealDTO {
   appealMedia?: ReturnMediaDTO[];
 }
 
-export type ReturnStatus = 
-  | 'PENDING' 
-  | 'APPROVED' 
-  | 'DENIED' 
-  | 'COMPLETED';
+export type ReturnStatus = "PENDING" | "APPROVED" | "DENIED" | "COMPLETED";
 
 export interface ReturnRequestsResponse {
   content: ReturnRequestDTO[];
@@ -94,30 +94,36 @@ export interface ReturnRequestsResponse {
   totalPages: number;
   size: number;
   number: number;
-  first: boolean;
-  last: boolean;
-  numberOfElements: number;
+  first?: boolean;
+  last?: boolean;
+  numberOfElements?: number;
+  // Support for custom Map response
+  data?: ReturnRequestDTO[];
+  pageSize?: number;
+  currentPage?: number;
+  success?: boolean;
 }
 
 export interface ReturnDecisionDTO {
   returnRequestId: string | number;
-  decision: 'APPROVED' | 'DENIED';
+  decision: "APPROVED" | "DENIED";
   decisionNotes?: string;
 }
 
 // Filter and search interfaces
 export interface ReturnRequestFilters {
-  status?: ReturnStatus | 'ALL';
-  customerType?: 'ALL' | 'REGISTERED' | 'GUEST';
+  status?: ReturnStatus | "ALL";
+  customerType?: "ALL" | "REGISTERED" | "GUEST";
   dateFrom?: string;
   dateTo?: string;
   search?: string;
+  shopId?: string;
 }
 
 export interface ReturnRequestSearchParams {
   page?: number;
   size?: number;
   sort?: string;
-  direction?: 'ASC' | 'DESC';
+  direction?: "ASC" | "DESC";
   filters?: ReturnRequestFilters;
 }
