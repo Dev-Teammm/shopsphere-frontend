@@ -32,6 +32,13 @@ export default function DashboardLayout({
 
     const shopSlug = searchParams.get("shopSlug");
 
+    // Debug: log shopSlug and pathname
+    console.log("Dashboard layout debug:", {
+      pathname,
+      shopSlug,
+      userRole: user?.role,
+    });
+
     // For shop-scoped roles, require a shopSlug in the URL, otherwise send them back to shops selector
     // But preserve the current pathname in case they come back
     if (
@@ -40,7 +47,7 @@ export default function DashboardLayout({
     ) {
       // Only redirect if we're not already on the shops page
       if (pathname !== "/shops") {
-        const returnUrl = searchParams.toString() 
+        const returnUrl = searchParams.toString()
           ? `${pathname}?${searchParams.toString()}`
           : pathname;
         router.replace(`/shops?returnUrl=${encodeURIComponent(returnUrl)}`);
@@ -61,6 +68,8 @@ export default function DashboardLayout({
       setTitle("Products Management");
     } else if (pathname.startsWith("/dashboard/orders")) {
       setTitle("Orders Management");
+    } else if (pathname.startsWith("/dashboard/returns")) {
+      setTitle("Returns Management");
     } else if (pathname.startsWith("/dashboard/invitations")) {
       setTitle("Invitations Management");
     } else if (pathname.startsWith("/dashboard/categories")) {
@@ -73,7 +82,9 @@ export default function DashboardLayout({
   }, [pathname, user, router, searchParams, checkingAuth]);
 
   return (
-    <ProtectedRoute allowedRoles={[UserRole.ADMIN, UserRole.EMPLOYEE, UserRole.VENDOR]}>
+    <ProtectedRoute
+      allowedRoles={[UserRole.ADMIN, UserRole.EMPLOYEE, UserRole.VENDOR]}
+    >
       <DashboardProvider>
         <div className="flex h-screen overflow-hidden">
           <div className="hidden md:block">
