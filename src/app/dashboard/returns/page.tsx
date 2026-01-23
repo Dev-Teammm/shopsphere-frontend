@@ -58,6 +58,9 @@ import deliveryAssignmentService from "@/lib/services/delivery-assignment-servic
 import { useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { shopService } from "@/lib/services/shop-service";
+import { useAppSelector } from "@/lib/redux/hooks";
+import type { RootState } from "@/lib/redux/store";
+import { useRouter } from "next/navigation";
 
 export default function ReturnRequestsPage() {
   const [returnRequests, setReturnRequests] = useState<ReturnRequestDTO[]>([]);
@@ -85,6 +88,8 @@ export default function ReturnRequestsPage() {
   const searchParams = useSearchParams();
   const shopSlug = searchParams.get("shopSlug");
   const [shopId, setShopId] = useState<string | null>(null);
+  const { user } = useAppSelector((state: RootState) => state.auth);
+  const router = useRouter();
 
   // Fetch shop by slug to get shopId
   const { data: shopData } = useQuery({
@@ -94,6 +99,11 @@ export default function ReturnRequestsPage() {
       return shopService.getShopBySlug(shopSlug);
     },
     enabled: !!shopSlug,
+    onError: (error) => {
+      console.error("Failed to fetch shop:", error);
+      toast.error("Shop not found or access denied");
+      router.push("/shops");
+    },
   });
 
   useEffect(() => {
@@ -114,6 +124,12 @@ export default function ReturnRequestsPage() {
   );
 
   const fetchReturnRequests = async () => {
+    // For vendors, shopId is required
+    if (user?.role === "VENDOR" && !shopId) {
+      setLoading(false);
+      return;
+    }
+
     try {
       setLoading(true);
 

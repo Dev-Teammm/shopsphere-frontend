@@ -39,8 +39,10 @@ export interface AppealMediaDTO {
 
 export interface AppealDecisionDTO {
   appealId: number;
+  shopId: string;
   decision: "APPROVED" | "DENIED";
-  decisionNotes?: string;
+  notes?: string;
+  refundScreenshot?: File;
 }
 
 export interface AppealFilterParams {
@@ -129,10 +131,22 @@ class AppealService {
    * Review and make decision on appeal
    */
   async reviewAppeal(decisionData: AppealDecisionDTO): Promise<AppealDTO> {
-    const response = await apiClient.post(
-      `${this.baseUrl}/review`,
-      decisionData,
-    );
+    const formData = new FormData();
+    formData.append("appealId", decisionData.appealId.toString());
+    formData.append("shopId", decisionData.shopId);
+    formData.append("decision", decisionData.decision);
+    if (decisionData.notes) {
+      formData.append("notes", decisionData.notes);
+    }
+    if (decisionData.refundScreenshot) {
+      formData.append("refundScreenshot", decisionData.refundScreenshot);
+    }
+
+    const response = await apiClient.post(`${this.baseUrl}/review`, formData, {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+    });
     return response.data;
   }
 

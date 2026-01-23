@@ -90,6 +90,7 @@ export default function AppealsPage() {
     appeal: null,
   });
   const [decisionNotes, setDecisionNotes] = useState("");
+  const [refundScreenshot, setRefundScreenshot] = useState<File | null>(null);
   const [dateRange, setDateRange] = useState<DateRange | undefined>();
   const [statsModalOpen, setStatsModalOpen] = useState(false);
 
@@ -160,6 +161,7 @@ export default function AppealsPage() {
       toast.success("Appeal decision submitted successfully");
       setDecisionDialog({ open: false, appeal: null });
       setDecisionNotes("");
+      setRefundScreenshot(null);
     },
     onError: (error: any) => {
       toast.error(error.response?.data?.message || "Failed to submit decision");
@@ -201,12 +203,14 @@ export default function AppealsPage() {
   };
 
   const handleDecision = (decision: "APPROVED" | "DENIED") => {
-    if (!decisionDialog.appeal) return;
+    if (!decisionDialog.appeal || !shopId) return;
 
     reviewMutation.mutate({
       appealId: decisionDialog.appeal.id,
+      shopId,
       decision,
-      decisionNotes: decisionNotes.trim() || undefined,
+      notes: decisionNotes.trim() || undefined,
+      refundScreenshot: refundScreenshot || undefined,
     });
   };
 
@@ -919,6 +923,24 @@ export default function AppealsPage() {
                 onChange={(e) => setDecisionNotes(e.target.value)}
                 rows={4}
               />
+            </div>
+            <div className="space-y-2">
+              <Label>
+                Refund Screenshot (Required for Approvals with Card Payments)
+              </Label>
+              <Input
+                type="file"
+                accept="image/*"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  setRefundScreenshot(file || null);
+                }}
+              />
+              {refundScreenshot && (
+                <p className="text-sm text-muted-foreground">
+                  Selected: {refundScreenshot.name}
+                </p>
+              )}
             </div>
             <div className="flex justify-end space-x-2">
               <Button
