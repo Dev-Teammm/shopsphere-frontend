@@ -104,6 +104,9 @@ export const API_ENDPOINTS = {
     MY_SHOPS: `/shops/my-shops`,
     USER_SHOPS: `/shops/user-shops`,
   },
+  STRIPE_ACCOUNTS: {
+    BASE: `/stripe-accounts`,
+  },
 };
 
 // User roles - must match backend UserRole enum exactly
