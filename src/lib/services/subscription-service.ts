@@ -16,6 +16,7 @@ export interface SubscriptionPlan {
   featuresJson: string;
   createdAt: string;
   updatedAt: string;
+  freemiumConsumed?: boolean; // Only set when fetching plans for a specific shop
 }
 
 export interface CreateSubscriptionPlanRequest {
@@ -50,8 +51,11 @@ export interface ShopSubscription {
 }
 
 export const subscriptionService = {
-  getAllPlans: async (activeOnly: boolean = false): Promise<SubscriptionPlan[]> => {
-    const response = await apiClient.get(`/subscriptions/plans?activeOnly=${activeOnly}`);
+  getAllPlans: async (activeOnly: boolean = false, shopId?: string): Promise<SubscriptionPlan[]> => {
+    const url = shopId 
+      ? `/subscriptions/plans?activeOnly=${activeOnly}&shopId=${shopId}`
+      : `/subscriptions/plans?activeOnly=${activeOnly}`;
+    const response = await apiClient.get(url);
     return response.data;
   },
 
@@ -106,5 +110,24 @@ export const subscriptionService = {
 
   cancelSubscription: async (shopId: string): Promise<void> => {
     await apiClient.post(`/subscriptions/cancel?shopId=${shopId}`);
+  },
+
+  createCheckoutSession: async (shopId: string, planId: number, platform: string = "web"): Promise<string> => {
+    const response = await apiClient.post(`/subscriptions/checkout?shopId=${shopId}&planId=${planId}&platform=${platform}`);
+    return response.data.checkoutUrl;
+  },
+
+  verifyPayment: async (sessionId: string): Promise<ShopSubscription> => {
+    const response = await apiClient.post(`/subscriptions/verify-payment?sessionId=${sessionId}`);
+    return response.data;
+  },
+
+  toggleAutoRenew: async (shopId: string, autoRenew: boolean): Promise<void> => {
+    await apiClient.post(`/subscriptions/toggle-auto-renew?shopId=${shopId}&autoRenew=${autoRenew}`);
+  },
+
+  hasConsumedFreemium: async (shopId: string): Promise<boolean> => {
+    const response = await apiClient.get(`/subscriptions/has-consumed-freemium/${shopId}`);
+    return response.data.hasConsumedFreemium;
   },
 };

@@ -17,6 +17,7 @@ import { BasicInfoTab } from "@/components/shops/manage/basic-info-tab";
 import { StripeAccountTab } from "@/components/shops/manage/stripe-account-tab";
 import { SubscriptionTab } from "@/components/shops/manage/subscription-tab";
 import { shopService, ShopDTO } from "@/lib/services/shop-service";
+import { subscriptionService } from "@/lib/services/subscription-service";
 
 function ShopManagementContent() {
   const router = useRouter();
@@ -29,6 +30,66 @@ function ShopManagementContent() {
   const shopId = params.shopId as string;
   const isNewShop = shopId === "create";
   const [activeTab, setActiveTab] = useState("basic");
+  const [paymentVerificationAttempted, setPaymentVerificationAttempted] = useState(false);
+
+  // Handle payment verification on return from Stripe (at page level to ensure it runs)
+  useEffect(() => {
+    if (isNewShop || paymentVerificationAttempted) return;
+    
+    const sessionId = searchParams.get("session_id");
+    const subscriptionStatus = searchParams.get("subscription");
+    
+    if (sessionId && subscriptionStatus === "success") {
+      setPaymentVerificationAttempted(true);
+      
+      console.log("Verifying payment for session:", sessionId);
+      
+      // Verify payment and activate subscription
+      subscriptionService.verifyPayment(sessionId)
+        .then(() => {
+          console.log("Payment verification successful");
+          
+          // Invalidate queries to refresh subscription data
+          queryClient.invalidateQueries({ queryKey: ["shop-subscription", shopId] });
+          queryClient.invalidateQueries({ queryKey: ["shop-subscription-history", shopId] });
+          queryClient.invalidateQueries({ queryKey: ["shop", shopId] });
+          queryClient.invalidateQueries({ queryKey: ["subscription-plans", "active", shopId] });
+          
+          toast({
+            title: "Payment Successful",
+            description: "Your subscription has been activated successfully!",
+          });
+          
+          // Switch to subscription tab to show the activated subscription
+          setActiveTab("subscription");
+          
+          // Clean up URL - remove query parameters
+          const newUrl = `/shops/manage/${shopId}`;
+          window.history.replaceState({}, "", newUrl);
+        })
+        .catch((error: any) => {
+          console.error("Payment verification error:", error);
+          toast({
+            title: "Payment Verification Failed",
+            description: error?.response?.data || error?.message || "Failed to verify payment. Please contact support.",
+            variant: "destructive",
+          });
+          // Still clean up URL even on error
+          const newUrl = `/shops/manage/${shopId}`;
+          window.history.replaceState({}, "", newUrl);
+          setPaymentVerificationAttempted(false); // Allow retry
+        });
+    } else if (subscriptionStatus === "cancel") {
+      toast({
+        title: "Payment Cancelled",
+        description: "Subscription payment was cancelled.",
+        variant: "default",
+      });
+      // Clean up URL
+      const newUrl = `/shops/manage/${shopId}`;
+      window.history.replaceState({}, "", newUrl);
+    }
+  }, [searchParams, shopId, isNewShop, paymentVerificationAttempted, queryClient, router, toast]);
 
   // Fetch existing shop data if editing
   const {

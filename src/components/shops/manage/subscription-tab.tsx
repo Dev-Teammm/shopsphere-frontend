@@ -1,11 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import {
   subscriptionService,
@@ -24,8 +27,21 @@ import {
   Calendar,
   CreditCard,
   Loader2,
+  Gift,
+  Ban,
+  RotateCcw,
 } from "lucide-react";
 import { format } from "date-fns";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface SubscriptionTabProps {
   shop: ShopDTO;
@@ -34,12 +50,15 @@ interface SubscriptionTabProps {
 export function SubscriptionTab({ shop }: SubscriptionTabProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [subscribingPlanId, setSubscribingPlanId] = useState<number | null>(null);
+  const [showCancelDialog, setShowCancelDialog] = useState(false);
 
-  // Fetch available plans
+  // Fetch available plans with shop-specific info
   const { data: plans, isLoading: plansLoading } = useQuery({
-    queryKey: ["subscription-plans", "active"],
-    queryFn: () => subscriptionService.getAllPlans(true),
+    queryKey: ["subscription-plans", "active", shop.shopId],
+    queryFn: () => subscriptionService.getAllPlans(true, shop.shopId),
   });
 
   // Fetch current subscription
@@ -54,39 +73,168 @@ export function SubscriptionTab({ shop }: SubscriptionTabProps) {
     queryFn: () => subscriptionService.getSubscriptionHistory(shop.shopId),
   });
 
+  // Note: freemiumConsumed is now included in plans data from backend
+
   // Check if subscription system is enabled
   const { data: isSystemEnabled } = useQuery({
     queryKey: ["subscription-system-status"],
     queryFn: subscriptionService.isSystemEnabled,
   });
 
-  // Subscribe mutation
-  const subscribeMutation = useMutation({
-    mutationFn: ({ planId, autoRenew }: { planId: number; autoRenew: boolean }) =>
-      subscriptionService.subscribeShop(shop.shopId, planId, autoRenew),
+  // Payment verification mutation
+  const verifyPaymentMutation = useMutation({
+    mutationFn: (sessionId: string) => subscriptionService.verifyPayment(sessionId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["shop-subscription", shop.shopId] });
       queryClient.invalidateQueries({ queryKey: ["shop-subscription-history", shop.shopId] });
       queryClient.invalidateQueries({ queryKey: ["shop", shop.shopId] });
       toast({
-        title: "Success",
-        description: "Successfully subscribed to the plan!",
+        title: "Payment Successful",
+        description: "Your subscription has been activated successfully!",
+      });
+      // Clean up URL
+      router.replace(`/shops/manage/${shop.shopId}`);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Payment Verification Failed",
+        description: error?.response?.data || error?.message || "Failed to verify payment. Please contact support.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Note: Payment verification is handled at the page level to ensure it runs
+  // regardless of which tab is active. This useEffect is kept as a backup.
+  // The page-level handler will switch to this tab after successful verification.
+
+  // Freemium subscription mutation
+  const freemiumMutation = useMutation({
+    mutationFn: ({ planId }: { planId: number }) =>
+      subscriptionService.subscribeShop(shop.shopId, planId, false),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["shop-subscription", shop.shopId] });
+      queryClient.invalidateQueries({ queryKey: ["shop-subscription-history", shop.shopId] });
+      queryClient.invalidateQueries({ queryKey: ["shop", shop.shopId] });
+      queryClient.invalidateQueries({ queryKey: ["shop-freemium-consumed", shop.shopId] });
+      toast({
+        title: "Free Trial Started",
+        description: "Your free trial has been activated successfully!",
       });
       setSubscribingPlanId(null);
     },
     onError: (error: any) => {
+      // Extract error message from backend response
+      let errorMessage = "Failed to start free trial. Please try again.";
+      let errorTitle = "Subscription Failed";
+      
+      if (error?.response?.data) {
+        // Backend returns error message as string or in a message field
+        if (typeof error.response.data === "string") {
+          errorMessage = error.response.data;
+        } else if (error.response.data.message) {
+          errorMessage = error.response.data.message;
+        } else if (error.response.data.error) {
+          errorMessage = error.response.data.error;
+        }
+      } else if (error?.message) {
+        errorMessage = error.message;
+      }
+      
+      // Check if it's a freemium consumption error
+      if (errorMessage.toLowerCase().includes("free trial") || 
+          errorMessage.toLowerCase().includes("freemium") ||
+          errorMessage.toLowerCase().includes("already used")) {
+        errorTitle = "Free Trial Unavailable";
+      }
+      
       toast({
-        title: "Subscription Failed",
-        description: error?.response?.data || "Failed to subscribe. Please try again.",
+        title: errorTitle,
+        description: errorMessage,
+        variant: "destructive",
+        duration: 5000, // Show for 5 seconds for important messages
+      });
+      setSubscribingPlanId(null);
+    },
+  });
+
+  // Paid subscription checkout mutation
+  const checkoutMutation = useMutation({
+    mutationFn: ({ planId, platform }: { planId: number; platform: string }) =>
+      subscriptionService.createCheckoutSession(shop.shopId, planId, platform),
+    onSuccess: (checkoutUrl) => {
+      // Redirect to Stripe checkout
+      window.location.href = checkoutUrl;
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Checkout Failed",
+        description: error?.response?.data || error?.message || "Failed to create checkout session. Please try again.",
         variant: "destructive",
       });
       setSubscribingPlanId(null);
     },
   });
 
-  const handleSubscribe = (planId: number) => {
-    setSubscribingPlanId(planId);
-    subscribeMutation.mutate({ planId, autoRenew: false });
+  // Cancel subscription mutation
+  const cancelMutation = useMutation({
+    mutationFn: () => subscriptionService.cancelSubscription(shop.shopId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["shop-subscription", shop.shopId] });
+      queryClient.invalidateQueries({ queryKey: ["shop-subscription-history", shop.shopId] });
+      queryClient.invalidateQueries({ queryKey: ["shop", shop.shopId] });
+      toast({
+        title: "Subscription Cancelled",
+        description: "Your subscription has been cancelled successfully.",
+      });
+      setShowCancelDialog(false);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Cancellation Failed",
+        description: error?.response?.data || error?.message || "Failed to cancel subscription. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Toggle auto-renew mutation
+  const toggleAutoRenewMutation = useMutation({
+    mutationFn: (autoRenew: boolean) => subscriptionService.toggleAutoRenew(shop.shopId, autoRenew),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["shop-subscription", shop.shopId] });
+      toast({
+        title: "Auto-Renew Updated",
+        description: "Your auto-renewal setting has been updated.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Update Failed",
+        description: error?.response?.data || error?.message || "Failed to update auto-renew. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleSubscribe = (plan: SubscriptionPlan) => {
+    setSubscribingPlanId(plan.id);
+    
+    if (plan.isFreemium) {
+      // Handle freemium subscription
+      freemiumMutation.mutate({ planId: plan.id });
+    } else {
+      // Handle paid subscription - create checkout session
+      checkoutMutation.mutate({ planId: plan.id, platform: "web" });
+    }
+  };
+
+  const handleCancelSubscription = () => {
+    cancelMutation.mutate();
+  };
+
+  const handleToggleAutoRenew = (checked: boolean) => {
+    toggleAutoRenewMutation.mutate(checked);
   };
 
   if (!isSystemEnabled) {
@@ -167,6 +315,44 @@ export function SubscriptionTab({ shop }: SubscriptionTabProps) {
                   </p>
                 </div>
               </div>
+
+              {/* Subscription Actions */}
+              {activeSubscription.status === "ACTIVE" && (
+                <div className="pt-4 border-t space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <Label htmlFor="auto-renew">Auto Renew</Label>
+                      <p className="text-xs text-muted-foreground">
+                        Automatically renew this subscription when it expires
+                      </p>
+                    </div>
+                    <Switch
+                      id="auto-renew"
+                      checked={activeSubscription.autoRenew || false}
+                      onCheckedChange={handleToggleAutoRenew}
+                      disabled={toggleAutoRenewMutation.isPending}
+                    />
+                  </div>
+                  <Button
+                    variant="destructive"
+                    onClick={() => setShowCancelDialog(true)}
+                    disabled={cancelMutation.isPending}
+                    className="w-full"
+                  >
+                    {cancelMutation.isPending ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Cancelling...
+                      </>
+                    ) : (
+                      <>
+                        <Ban className="mr-2 h-4 w-4" />
+                        Cancel Subscription
+                      </>
+                    )}
+                  </Button>
+                </div>
+              )}
             </div>
           ) : (
             <div className="text-center py-8">
@@ -194,75 +380,120 @@ export function SubscriptionTab({ shop }: SubscriptionTabProps) {
             </div>
           ) : (
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {plans?.map((plan) => (
-                <Card key={plan.id} className="flex flex-col">
-                  <CardHeader>
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <CardTitle className="text-xl">{plan.name}</CardTitle>
-                        <CardDescription className="mt-1">
-                          {plan.currency} {plan.price.toFixed(2)} / {plan.durationInDays} days
-                        </CardDescription>
-                      </div>
-                      {plan.isFreemium && <Badge variant="secondary">Freemium</Badge>}
-                    </div>
-                  </CardHeader>
-                  <CardContent className="flex-1 space-y-4">
-                    <p className="text-sm text-muted-foreground min-h-[40px]">
-                      {plan.description || "No description provided."}
-                    </p>
+              {plans?.map((plan) => {
+                const isFreemium = plan.isFreemium;
+                const freemiumConsumed = plan.freemiumConsumed || false;
+                const isCurrentPlan = activeSubscription?.planId === plan.id;
+                const hasActiveSubscription = activeSubscription?.status === "ACTIVE";
+                const canSubscribe = !isCurrentPlan && !hasActiveSubscription && !freemiumConsumed;
 
-                    <div className="space-y-2 text-sm">
-                      <div className="flex items-center gap-2">
-                        <Package className="h-4 w-4 opacity-70" />
-                        <span>
-                          Products: {plan.maxProducts === -1 ? "Unlimited" : plan.maxProducts}
-                        </span>
+                return (
+                  <Card key={plan.id} className="flex flex-col">
+                    <CardHeader>
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <CardTitle className="text-xl">{plan.name}</CardTitle>
+                          <CardDescription className="mt-1">
+                            {isFreemium ? (
+                              "Free Trial"
+                            ) : (
+                              `${plan.currency} ${plan.price.toFixed(2)} / ${plan.durationInDays} days`
+                            )}
+                          </CardDescription>
+                        </div>
+                        {isFreemium && (
+                          <Badge variant="secondary" className="gap-1">
+                            <Gift className="h-3 w-3" />
+                            Freemium
+                          </Badge>
+                        )}
                       </div>
-                      <div className="flex items-center gap-2">
-                        <Warehouse className="h-4 w-4 opacity-70" />
-                        <span>
-                          Warehouses: {plan.maxWarehouses === -1 ? "Unlimited" : plan.maxWarehouses}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Users className="h-4 w-4 opacity-70" />
-                        <span>
-                          Employees: {plan.maxEmployees === -1 ? "Unlimited" : plan.maxEmployees}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Truck className="h-4 w-4 opacity-70" />
-                        <span>
-                          Delivery Agents:{" "}
-                          {plan.maxDeliveryAgents === -1 ? "Unlimited" : plan.maxDeliveryAgents}
-                        </span>
-                      </div>
-                    </div>
+                    </CardHeader>
+                    <CardContent className="flex-1 space-y-4">
+                      <p className="text-sm text-muted-foreground min-h-[40px]">
+                        {plan.description || "No description provided."}
+                      </p>
 
-                    <Button
-                      className="w-full mt-4"
-                      onClick={() => handleSubscribe(plan.id)}
-                      disabled={
-                        subscribingPlanId === plan.id ||
-                        subscribeMutation.isPending ||
-                        activeSubscription?.planId === plan.id
-                      }
-                    >
-                      {subscribingPlanId === plan.id ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Subscribing...
-                        </>
-                      ) : activeSubscription?.planId === plan.id ? (
-                        "Current Plan"
-                      ) : (
-                        "Subscribe"
+                      <div className="space-y-2 text-sm">
+                        <div className="flex items-center gap-2">
+                          <Package className="h-4 w-4 opacity-70" />
+                          <span>
+                            Products: {plan.maxProducts === -1 ? "Unlimited" : plan.maxProducts}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Warehouse className="h-4 w-4 opacity-70" />
+                          <span>
+                            Warehouses: {plan.maxWarehouses === -1 ? "Unlimited" : plan.maxWarehouses}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Users className="h-4 w-4 opacity-70" />
+                          <span>
+                            Employees: {plan.maxEmployees === -1 ? "Unlimited" : plan.maxEmployees}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Truck className="h-4 w-4 opacity-70" />
+                          <span>
+                            Delivery Agents:{" "}
+                            {plan.maxDeliveryAgents === -1 ? "Unlimited" : plan.maxDeliveryAgents}
+                          </span>
+                        </div>
+                      </div>
+
+                      {freemiumConsumed && isFreemium && (
+                        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-sm text-yellow-800">
+                          <p className="font-medium">Free trial already used</p>
+                          <p className="text-xs mt-1">You can only use one free trial per shop.</p>
+                        </div>
                       )}
-                    </Button>
-                  </CardContent>
-                </Card>
-              ))}
+
+                      {hasActiveSubscription && !isCurrentPlan && (
+                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-800">
+                          <p className="font-medium">Active subscription required</p>
+                          <p className="text-xs mt-1">Cancel your current subscription to switch plans.</p>
+                        </div>
+                      )}
+
+                      <Button
+                        className="w-full mt-4"
+                        onClick={() => handleSubscribe(plan)}
+                        disabled={
+                          subscribingPlanId === plan.id ||
+                          freemiumMutation.isPending ||
+                          checkoutMutation.isPending ||
+                          !canSubscribe
+                        }
+                        variant={isFreemium ? "default" : "default"}
+                      >
+                        {subscribingPlanId === plan.id ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            {isFreemium ? "Activating..." : "Processing..."}
+                          </>
+                        ) : isCurrentPlan ? (
+                          "Current Plan"
+                        ) : freemiumConsumed && isFreemium ? (
+                          "Already Used"
+                        ) : hasActiveSubscription && !isCurrentPlan ? (
+                          "Cancel Current Plan First"
+                        ) : isFreemium ? (
+                          <>
+                            <Gift className="mr-2 h-4 w-4" />
+                            Use for Free
+                          </>
+                        ) : (
+                          <>
+                            <CreditCard className="mr-2 h-4 w-4" />
+                            Subscribe
+                          </>
+                        )}
+                      </Button>
+                    </CardContent>
+                  </Card>
+                );
+              })}
               {plans?.length === 0 && (
                 <div className="col-span-full text-center p-12 text-muted-foreground">
                   No subscription plans available
@@ -327,6 +558,27 @@ export function SubscriptionTab({ shop }: SubscriptionTabProps) {
           )}
         </CardContent>
       </Card>
+
+      {/* Cancel Subscription Dialog */}
+      <AlertDialog open={showCancelDialog} onOpenChange={setShowCancelDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Cancel Subscription</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to cancel your subscription? Your subscription will remain active until the end of the current billing period, but it will not auto-renew.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep Subscription</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleCancelSubscription}
+              className="bg-destructive text-destructive-foreground"
+            >
+              Cancel Subscription
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
