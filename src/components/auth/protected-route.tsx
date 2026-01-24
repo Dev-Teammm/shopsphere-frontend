@@ -51,7 +51,9 @@ export default function ProtectedRoute({
 
     if (user && allowedRoles.length > 0 && !allowedRoles.includes(user.role)) {
       hasRedirected.current = true;
-      if (user.role === UserRole.DELIVERY_AGENT) {
+      if (user.role === UserRole.ADMIN) {
+        router.push("/admin/dashboard");
+      } else if (user.role === UserRole.DELIVERY_AGENT) {
         router.push("/delivery-agent/dashboard");
       } else if (user.role === UserRole.CUSTOMER) {
         router.push("/");

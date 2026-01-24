@@ -8,7 +8,14 @@ import { useAppSelector } from "@/lib/redux/hooks";
 import type { RootState } from "@/lib/redux/store";
 import { UserRole } from "@/lib/constants";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
@@ -16,7 +23,6 @@ import { Store, Package, Plus, ArrowRight, Building2 } from "lucide-react";
 import Image from "next/image";
 import ProtectedRoute from "@/components/auth/protected-route";
 import { ShopsHeader } from "@/components/shops/shops-header";
-import { CreateShopDialog } from "@/components/shops/create-shop-dialog";
 
 function ShopsPageContent() {
   const router = useRouter();
@@ -24,6 +30,13 @@ function ShopsPageContent() {
   const { toast } = useToast();
   const { user } = useAppSelector((state: RootState) => state.auth);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+
+  // Redirect admins immediately to admin portal
+  useEffect(() => {
+    if (user?.role === UserRole.ADMIN) {
+      router.replace("/admin/dashboard");
+    }
+  }, [user, router]);
 
   const {
     data: shops,
@@ -39,10 +52,11 @@ function ShopsPageContent() {
 
   useEffect(() => {
     if (shopsError) {
-      const errorMessage = shopsError instanceof Error 
-        ? shopsError.message 
-        : "Failed to load shops";
-      
+      const errorMessage =
+        shopsError instanceof Error
+          ? shopsError.message
+          : "Failed to load shops";
+
       if (errorMessage.includes("Unauthorized")) {
         toast({
           title: "Authentication Error",
@@ -68,7 +82,19 @@ function ShopsPageContent() {
     if (!slug) {
       toast({
         title: "Cannot open shop",
-        description: "This shop is missing a valid slug. Please contact support.",
+        description:
+          "This shop is missing a valid slug. Please contact support.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Check if shop has Stripe account connected (only for active shops)
+    if (shop.status === "ACTIVE" && !shop.stripeAccount) {
+      toast({
+        title: "Stripe Account Required",
+        description:
+          "This shop needs a Stripe account to be connected before you can access it. Please contact the shop owner.",
         variant: "destructive",
       });
       return;
@@ -99,16 +125,23 @@ function ShopsPageContent() {
       if (returnUrl) {
         router.push(targetUrl);
       } else {
-        router.push(`/delivery-agent/dashboard?shopSlug=${encodeURIComponent(slug)}`);
+        router.push(
+          `/delivery-agent/dashboard?shopSlug=${encodeURIComponent(slug)}`,
+        );
       }
       return;
     }
 
-    // Vendors, employees and admins go to the main dashboard with shopSlug
+    // Admins should not select shops - redirect to admin portal
+    if (user?.role === UserRole.ADMIN) {
+      router.push("/admin/dashboard");
+      return;
+    }
+
+    // Vendors and employees go to the main dashboard with shopSlug
     if (
       user?.role === UserRole.VENDOR ||
-      user?.role === UserRole.EMPLOYEE ||
-      user?.role === UserRole.ADMIN
+      user?.role === UserRole.EMPLOYEE
     ) {
       router.push(targetUrl);
       return;
@@ -123,7 +156,7 @@ function ShopsPageContent() {
   };
 
   const handleCreateShop = () => {
-    setIsCreateDialogOpen(true);
+    router.push("/shops/manage/create");
   };
 
   if (shopsLoading) {
@@ -185,11 +218,7 @@ function ShopsPageContent() {
         </Badge>
       );
     }
-    return (
-      <Badge variant="secondary">
-        {status}
-      </Badge>
-    );
+    return <Badge variant="secondary">{status}</Badge>;
   };
 
   return (
@@ -203,7 +232,8 @@ function ShopsPageContent() {
               Select a shop to manage or create a new one
             </p>
           </div>
-          {(user?.role === UserRole.VENDOR || user?.role === UserRole.CUSTOMER) && (
+          {(user?.role === UserRole.VENDOR ||
+            user?.role === UserRole.CUSTOMER) && (
             <Button onClick={handleCreateShop} size="lg" className="gap-2">
               <Plus className="h-5 w-5" />
               Create Shop
@@ -211,96 +241,122 @@ function ShopsPageContent() {
           )}
         </div>
 
-
-      {!shopsLoading && !shopsError && (!shops || shops.length === 0) && (
-        <Card>
-          <CardContent className="pt-6">
-            <div className="text-center py-12">
-              <Building2 className="h-16 w-16 mx-auto text-muted-foreground mb-4" />
-              <h3 className="text-xl font-semibold mb-2">No shops found</h3>
-              <p className="text-muted-foreground mb-6">
-                {user?.role === UserRole.VENDOR || user?.role === UserRole.CUSTOMER
-                  ? "You don't have any shops yet. Create your first shop to get started."
-                  : "You are not associated with any shops yet."}
-              </p>
-              {(user?.role === UserRole.VENDOR || user?.role === UserRole.CUSTOMER) && (
-                <Button onClick={handleCreateShop} size="lg" className="gap-2">
-                  <Plus className="h-5 w-5" />
-                  Create Shop
-                </Button>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {!shopsLoading && !shopsError && shops && shops.length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {shops.map((shop) => (
-            <Card key={shop.shopId} className="hover:shadow-lg transition-shadow">
-              <CardHeader className="p-0">
-                <div className="relative h-48 w-full bg-muted rounded-t-lg overflow-hidden">
-                  {shop.logoUrl ? (
-                    <Image
-                      src={shop.logoUrl}
-                      alt={shop.name}
-                      fill
-                      className="object-cover"
-                      unoptimized
-                    />
-                  ) : (
-                    <div className="flex items-center justify-center h-full bg-muted">
-                      <Store className="h-16 w-16 text-muted-foreground" />
-                    </div>
-                  )}
-                  <div className="absolute top-2 right-2">
-                    {getStatusBadge(shop.status, shop.isActive)}
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent className="pt-6">
-                <CardTitle className="mb-2">{shop.name}</CardTitle>
-                {shop.description && (
-                  <CardDescription className="line-clamp-2 mb-4">
-                    {shop.description}
-                  </CardDescription>
+        {!shopsLoading && !shopsError && (!shops || shops.length === 0) && (
+          <Card>
+            <CardContent className="pt-6">
+              <div className="text-center py-12">
+                <Building2 className="h-16 w-16 mx-auto text-muted-foreground mb-4" />
+                <h3 className="text-xl font-semibold mb-2">No shops found</h3>
+                <p className="text-muted-foreground mb-6">
+                  {user?.role === UserRole.VENDOR ||
+                  user?.role === UserRole.CUSTOMER
+                    ? "You don't have any shops yet. Create your first shop to get started."
+                    : "You are not associated with any shops yet."}
+                </p>
+                {(user?.role === UserRole.VENDOR ||
+                  user?.role === UserRole.CUSTOMER) && (
+                  <Button
+                    onClick={handleCreateShop}
+                    size="lg"
+                    className="gap-2"
+                  >
+                    <Plus className="h-5 w-5" />
+                    Create Shop
+                  </Button>
                 )}
-                <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                  <div className="flex items-center gap-2">
-                    <Package className="h-4 w-4" />
-                    <span>{shop.productCount || 0} products</span>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {!shopsLoading && !shopsError && shops && shops.length > 0 && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {shops.map((shop) => (
+              <Card
+                key={shop.shopId}
+                className="hover:shadow-lg transition-shadow"
+              >
+                <CardHeader className="p-0">
+                  <div className="relative h-48 w-full bg-muted rounded-t-lg overflow-hidden">
+                    {shop.logoUrl ? (
+                      <Image
+                        src={shop.logoUrl}
+                        alt={shop.name}
+                        fill
+                        className="object-cover"
+                        unoptimized
+                      />
+                    ) : (
+                      <div className="flex items-center justify-center h-full bg-muted">
+                        <Store className="h-16 w-16 text-muted-foreground" />
+                      </div>
+                    )}
+                    <div className="absolute top-2 right-2">
+                      {getStatusBadge(shop.status, shop.isActive)}
+                    </div>
                   </div>
-                </div>
-              </CardContent>
-              <CardFooter>
-                <Button
-                  onClick={() => handleOpenShop(shop)}
-                  className="w-full gap-2"
-                  size="lg"
-                  disabled={shop.status === "SUSPENDED" || shop.status === "INACTIVE"}
-                >
-                  Open
-                  <ArrowRight className="h-4 w-4" />
-                </Button>
-              </CardFooter>
-            </Card>
-          ))}
-        </div>
-      )}
+                </CardHeader>
+                <CardContent className="pt-6">
+                  <CardTitle className="mb-2">{shop.name}</CardTitle>
+                  {shop.description && (
+                    <CardDescription className="line-clamp-2 mb-4">
+                      {shop.description}
+                    </CardDescription>
+                  )}
+                  <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                    <div className="flex items-center gap-2">
+                      <Package className="h-4 w-4" />
+                      <span>{shop.productCount || 0} products</span>
+                    </div>
+                  </div>
+                </CardContent>
+                <CardFooter className="flex gap-2">
+                  {user?.role === UserRole.VENDOR &&
+                    shop.ownerId === user.id && (
+                      <Button
+                        onClick={() =>
+                          router.push(`/shops/manage/${shop.shopId}`)
+                        }
+                        variant="outline"
+                        className="flex-1 gap-2"
+                        size="lg"
+                      >
+                        <Store className="h-4 w-4" />
+                        Manage
+                      </Button>
+                    )}
+                  <Button
+                    onClick={() => handleOpenShop(shop)}
+                    className="flex-1 gap-2"
+                    size="lg"
+                    disabled={
+                      shop.status === "SUSPENDED" || shop.status === "INACTIVE"
+                    }
+                  >
+                    Open
+                    <ArrowRight className="h-4 w-4" />
+                  </Button>
+                </CardFooter>
+              </Card>
+            ))}
+          </div>
+        )}
       </div>
-      <CreateShopDialog
-        isOpen={isCreateDialogOpen}
-        onOpenChange={setIsCreateDialogOpen}
-      />
     </div>
   );
 }
 
 export default function ShopsPage() {
   return (
-    <ProtectedRoute allowedRoles={[UserRole.VENDOR, UserRole.CUSTOMER, UserRole.EMPLOYEE, UserRole.DELIVERY_AGENT, UserRole.ADMIN]}>
+    <ProtectedRoute
+      allowedRoles={[
+        UserRole.VENDOR,
+        UserRole.CUSTOMER,
+        UserRole.EMPLOYEE,
+        UserRole.DELIVERY_AGENT,
+      ]}
+    >
       <ShopsPageContent />
     </ProtectedRoute>
   );
 }
-
