@@ -40,7 +40,6 @@ const formSchema = z.object({
 export function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const returnUrl = searchParams?.get("returnUrl") || "/dashboard";
   const { toast } = useToast();
   const [showPassword, setShowPassword] = useState(false);
 
@@ -64,23 +63,22 @@ export function LoginForm() {
   // Redirect if already authenticated
   useEffect(() => {
     if (isAuthenticated && !authLoading && user) {
-      // If returnUrl is provided and valid, use it
-      if (returnUrl && returnUrl !== "/auth" && returnUrl.startsWith("/")) {
-      router.replace(returnUrl);
+      // Always redirect based on role, ignore returnUrl for role-based redirects
+      if (user.role === UserRole.ADMIN) {
+        router.replace("/admin/dashboard");
+      } else if (user.role === UserRole.DELIVERY_AGENT) {
+        router.replace("/delivery-agent/dashboard");
       } else if (
         user.role === UserRole.VENDOR ||
         user.role === UserRole.CUSTOMER ||
-        user.role === UserRole.EMPLOYEE ||
-        user.role === UserRole.ADMIN
+        user.role === UserRole.EMPLOYEE
       ) {
         router.replace("/shops");
-      } else if (user.role === UserRole.DELIVERY_AGENT) {
-        router.replace("/delivery-agent/dashboard");
       } else {
         router.replace("/dashboard");
       }
     }
-  }, [isAuthenticated, router, authLoading, user, returnUrl]);
+  }, [isAuthenticated, router, authLoading, user]);
 
   // Show auth error if any
   useEffect(() => {
@@ -119,19 +117,17 @@ export function LoginForm() {
         description: data.message || "Logged in successfully",
       });
 
-      // If returnUrl is provided and valid, use it
-      // Otherwise, redirect based on role
-      if (returnUrl && returnUrl !== "/auth" && returnUrl.startsWith("/")) {
-        router.replace(returnUrl);
+      // Always redirect based on role - ignore returnUrl for role-based redirects
+      if (data.role === UserRole.ADMIN) {
+        router.replace("/admin/dashboard");
+      } else if (data.role === UserRole.DELIVERY_AGENT) {
+        router.replace("/delivery-agent/dashboard");
       } else if (
         data.role === UserRole.VENDOR ||
         data.role === UserRole.CUSTOMER ||
-        data.role === UserRole.EMPLOYEE ||
-        data.role === UserRole.ADMIN
+        data.role === UserRole.EMPLOYEE
       ) {
         router.replace("/shops");
-      } else if (data.role === UserRole.DELIVERY_AGENT) {
-        router.replace("/delivery-agent/dashboard");
       } else {
         router.replace("/dashboard");
       }

@@ -55,6 +55,12 @@ export default function DashboardLayout({
       return;
     }
 
+    // Redirect admins to their portal
+    if (user.role === UserRole.ADMIN) {
+      router.replace("/admin/dashboard");
+      return;
+    }
+
     // Redirect delivery agents to their portal
     if (user.role === UserRole.DELIVERY_AGENT) {
       router.replace("/delivery-agent/dashboard");
@@ -83,7 +89,7 @@ export default function DashboardLayout({
 
   return (
     <ProtectedRoute
-      allowedRoles={[UserRole.ADMIN, UserRole.EMPLOYEE, UserRole.VENDOR]}
+      allowedRoles={[UserRole.EMPLOYEE, UserRole.VENDOR]}
     >
       <DashboardProvider>
         <div className="flex h-screen overflow-hidden">

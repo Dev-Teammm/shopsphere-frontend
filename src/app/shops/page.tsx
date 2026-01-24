@@ -31,6 +31,13 @@ function ShopsPageContent() {
   const { user } = useAppSelector((state: RootState) => state.auth);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
 
+  // Redirect admins immediately to admin portal
+  useEffect(() => {
+    if (user?.role === UserRole.ADMIN) {
+      router.replace("/admin/dashboard");
+    }
+  }, [user, router]);
+
   const {
     data: shops,
     isLoading: shopsLoading,
@@ -125,11 +132,16 @@ function ShopsPageContent() {
       return;
     }
 
-    // Vendors, employees and admins go to the main dashboard with shopSlug
+    // Admins should not select shops - redirect to admin portal
+    if (user?.role === UserRole.ADMIN) {
+      router.push("/admin/dashboard");
+      return;
+    }
+
+    // Vendors and employees go to the main dashboard with shopSlug
     if (
       user?.role === UserRole.VENDOR ||
-      user?.role === UserRole.EMPLOYEE ||
-      user?.role === UserRole.ADMIN
+      user?.role === UserRole.EMPLOYEE
     ) {
       router.push(targetUrl);
       return;
@@ -342,7 +354,6 @@ export default function ShopsPage() {
         UserRole.CUSTOMER,
         UserRole.EMPLOYEE,
         UserRole.DELIVERY_AGENT,
-        UserRole.ADMIN,
       ]}
     >
       <ShopsPageContent />

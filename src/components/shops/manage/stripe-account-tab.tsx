@@ -37,11 +37,18 @@ export function StripeAccountTab({
   const { toast } = useToast();
   const [isConnecting, setIsConnecting] = useState(false);
 
-  // Mock query to check Stripe account status - in real implementation, this would call an API
+  // Check Stripe account status from API
   const { data: stripeAccount, isLoading } = useQuery({
     queryKey: ["stripeAccount", shop.shopId],
     queryFn: async () => {
-      // This would be replaced with actual API call to check Stripe account status
+      try {
+        // Try to fetch from API first
+        const account = await shopService.getStripeAccount(shop.shopId);
+        if (account) return account;
+      } catch (error) {
+        console.error("Failed to fetch stripe account", error);
+      }
+      // Fallback to shop data if API fails or returns null (though 404 is handled in service)
       return shop.stripeAccount || null;
     },
     enabled: !!shop.shopId,
@@ -49,29 +56,19 @@ export function StripeAccountTab({
 
   const connectStripeMutation = useMutation({
     mutationFn: async () => {
-      // In real implementation, this would initiate the Stripe OAuth flow
-      // For now, we'll simulate the connection process with mock data
-      const mockStripeAccountData: StripeAccountDTO = {
-        stripeAccountId: `acct_${Date.now()}`,
-        accountStatus: "active",
-        chargesEnabled: true,
-        payoutsEnabled: true,
-        businessProfile: {
-          name: "Mock Business",
-          supportEmail: "support@example.com",
-        },
-      };
+      // Send empty object - backend will generate all mock credentials
+      const stripeAccountData: Partial<StripeAccountDTO> = {};
 
       return shopService.connectStripeAccount(
         shop.shopId,
-        mockStripeAccountData,
+        stripeAccountData as StripeAccountDTO,
       );
     },
     onSuccess: (data) => {
       toast({
         title: "Stripe Account Connected",
         description:
-          "Your Stripe account has been successfully connected. Your shop is now active!",
+          "Your mock Stripe account has been successfully created. Your shop is now active!",
         variant: "default",
       });
       onStripeConnected();
@@ -206,24 +203,62 @@ export function StripeAccountTab({
                 </div>
               </div>
 
-              {stripeAccount.businessProfile && (
+              {stripeAccount.businessName && (
                 <div className="pt-4 border-t">
                   <p className="text-sm font-medium mb-2">
                     Business Information
                   </p>
                   <div className="text-sm text-muted-foreground space-y-1">
-                    {stripeAccount.businessProfile.name && (
-                      <p>Business Name: {stripeAccount.businessProfile.name}</p>
+                    {stripeAccount.businessName && (
+                      <p>Business Name: {stripeAccount.businessName}</p>
                     )}
-                    {stripeAccount.businessProfile.supportEmail && (
-                      <p>
-                        Support Email:{" "}
-                        {stripeAccount.businessProfile.supportEmail}
-                      </p>
+                    {stripeAccount.businessUrl && (
+                      <p>Business URL: {stripeAccount.businessUrl}</p>
+                    )}
+                    {stripeAccount.supportEmail && (
+                      <p>Support Email: {stripeAccount.supportEmail}</p>
+                    )}
+                    {stripeAccount.businessPhone && (
+                      <p>Business Phone: {stripeAccount.businessPhone}</p>
                     )}
                   </div>
                 </div>
               )}
+
+              {stripeAccount.bankName && (
+                <div className="pt-4 border-t">
+                  <p className="text-sm font-medium mb-2">
+                    Bank Account Information
+                  </p>
+                  <div className="text-sm text-muted-foreground space-y-1">
+                    <p>Bank Name: {stripeAccount.bankName}</p>
+                    {stripeAccount.bankLast4 && (
+                      <p>Account Ending: ****{stripeAccount.bankLast4}</p>
+                    )}
+                    {stripeAccount.routingNumber && (
+                      <p>Routing Number: {stripeAccount.routingNumber}</p>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              <div className="pt-4 border-t">
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <p className="text-sm font-medium text-blue-900 mb-2">
+                    Mock Credentials (Development Only)
+                  </p>
+                  <p className="text-xs text-blue-700">
+                    These are generated mock credentials for development and testing purposes.
+                    In production, this would be replaced with real Stripe OAuth integration.
+                  </p>
+                  <div className="mt-2 text-xs text-blue-800">
+                    <p><strong>Stripe Account ID:</strong> {stripeAccount.stripeAccountId}</p>
+                    <p><strong>Status:</strong> {stripeAccount.accountStatus}</p>
+                    <p><strong>Country:</strong> {stripeAccount.country || 'US'}</p>
+                    <p><strong>Currency:</strong> {stripeAccount.currency || 'USD'}</p>
+                  </div>
+                </div>
+              </div>
 
               <div className="pt-4 border-t">
                 <Button

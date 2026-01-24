@@ -23,20 +23,29 @@ export interface ShopDTO {
 
 export interface StripeAccountDTO {
   id?: string;
+  shopId?: string;
+  shopName?: string;
   stripeAccountId: string;
   accountStatus: string;
+  accountType?: string;
+  isVerified?: boolean;
   chargesEnabled?: boolean;
   payoutsEnabled?: boolean;
-  businessProfile?: {
-    name?: string;
-    supportEmail?: string;
-    url?: string;
-  };
-  requirements?: {
-    currentlyDue?: string[];
-    eventuallyDue?: string[];
-    pastDue?: string[];
-  };
+  country?: string;
+  currency?: string;
+  businessType?: string;
+  businessName?: string;
+  businessUrl?: string;
+  businessPhone?: string;
+  supportEmail?: string;
+  bankAccountId?: string;
+  bankName?: string;
+  bankLast4?: string;
+  routingNumber?: string;
+  requirements?: string;
+  capabilities?: string;
+  verificationStatus?: string;
+  metadata?: string;
 }
 
 class ShopService {
@@ -185,6 +194,31 @@ class ShopService {
           error.message ||
           "Failed to create shop. Please try again.",
       );
+    }
+  }
+
+  async getStripeAccount(shopId: string): Promise<StripeAccountDTO | null> {
+    try {
+      const token = localStorage.getItem("authToken");
+      if (!token) {
+        throw new Error("Authentication token not found. Please log in again.");
+      }
+
+      const response = await apiClient.get<StripeAccountDTO>(
+        `${API_ENDPOINTS.STRIPE_ACCOUNTS.BASE}/shops/${shopId}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        },
+      );
+      return response.data;
+    } catch (error: any) {
+      if (error.response?.status === 404) {
+        return null;
+      }
+      console.error("[ShopService] Error fetching Stripe account:", error);
+      throw error;
     }
   }
 
