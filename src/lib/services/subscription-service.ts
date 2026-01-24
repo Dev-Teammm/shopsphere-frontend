@@ -33,6 +33,22 @@ export interface CreateSubscriptionPlanRequest {
   featuresJson: string;
 }
 
+export interface ShopSubscription {
+  id: number;
+  shopId: string;
+  shopName: string;
+  planId: number;
+  planName: string;
+  startDate: string;
+  endDate: string;
+  status: "ACTIVE" | "EXPIRED" | "CANCELLED" | "PENDING_PAYMENT";
+  paymentReference?: string;
+  amountPaid: number;
+  autoRenew: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export const subscriptionService = {
   getAllPlans: async (activeOnly: boolean = false): Promise<SubscriptionPlan[]> => {
     const response = await apiClient.get(`/subscriptions/plans?activeOnly=${activeOnly}`);
@@ -65,5 +81,30 @@ export const subscriptionService = {
 
   setSystemEnabled: async (enabled: boolean): Promise<void> => {
     await apiClient.post(`/subscriptions/config/enabled?enabled=${enabled}`);
+  },
+
+  // Shop Subscription Methods
+  subscribeShop: async (shopId: string, planId: number, autoRenew: boolean = false): Promise<ShopSubscription> => {
+    const response = await apiClient.post(`/subscriptions/subscribe?shopId=${shopId}&planId=${planId}&autoRenew=${autoRenew}`);
+    return response.data;
+  },
+
+  getActiveSubscription: async (shopId: string): Promise<ShopSubscription | null> => {
+    const response = await apiClient.get(`/subscriptions/active/${shopId}`);
+    return response.data;
+  },
+
+  getSubscriptionHistory: async (shopId: string): Promise<ShopSubscription[]> => {
+    const response = await apiClient.get(`/subscriptions/history/${shopId}`);
+    return response.data;
+  },
+
+  renewSubscription: async (shopId: string): Promise<ShopSubscription> => {
+    const response = await apiClient.post(`/subscriptions/renew?shopId=${shopId}`);
+    return response.data;
+  },
+
+  cancelSubscription: async (shopId: string): Promise<void> => {
+    await apiClient.post(`/subscriptions/cancel?shopId=${shopId}`);
   },
 };

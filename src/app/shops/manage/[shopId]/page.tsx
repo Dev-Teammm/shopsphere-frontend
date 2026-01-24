@@ -11,10 +11,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Store, CreditCard, Loader2 } from "lucide-react";
+import { ArrowLeft, Store, CreditCard, Loader2, Package } from "lucide-react";
 import ProtectedRoute from "@/components/auth/protected-route";
 import { BasicInfoTab } from "@/components/shops/manage/basic-info-tab";
 import { StripeAccountTab } from "@/components/shops/manage/stripe-account-tab";
+import { SubscriptionTab } from "@/components/shops/manage/subscription-tab";
 import { shopService, ShopDTO } from "@/lib/services/shop-service";
 
 function ShopManagementContent() {
@@ -42,14 +43,19 @@ function ShopManagementContent() {
 
   // Check if user can manage this shop
   const canManageShop = useMemo(() => {
-    if (!user) return false;
+    if (!user) return null; // Still loading user
     if (user.role === UserRole.ADMIN) return true;
     if (isNewShop) return user.role === UserRole.VENDOR || user.role === UserRole.CUSTOMER;
-    return existingShop?.ownerId === user.id;
-  }, [user, existingShop, isNewShop]);
+    // For existing shops, wait for shop data to load
+    if (shopLoading) return null; // Still loading shop - don't make decision yet
+    if (!existingShop) return false; // Shop not found or doesn't exist
+    return existingShop.ownerId === user.id;
+  }, [user, existingShop, isNewShop, shopLoading]);
 
   useEffect(() => {
-    if (!canManageShop) {
+    // Only redirect if we've finished loading (not loading) and user doesn't have permission
+    // Don't redirect if we're still loading data
+    if (!shopLoading && canManageShop === false && !isNewShop) {
       toast({
         title: "Access Denied",
         description: "You don't have permission to manage this shop.",
@@ -58,10 +64,26 @@ function ShopManagementContent() {
       router.push("/shops");
       return;
     }
-  }, [canManageShop, toast, router]);
+  }, [canManageShop, shopLoading, isNewShop, toast, router]);
 
   useEffect(() => {
-    if (shopError) {
+    // Only redirect on error if we're not still loading and it's a real error
+    if (shopError && !shopLoading) {
+      const errorMessage = shopError instanceof Error ? shopError.message : String(shopError);
+      
+      // Don't redirect on database type errors - these are fixable
+      if (errorMessage.includes("operator does not exist") || 
+          errorMessage.includes("bigint = uuid") ||
+          errorMessage.includes("JDBC exception")) {
+        toast({
+          title: "Database Error",
+          description: "There's a database configuration issue. Please contact support.",
+          variant: "destructive",
+        });
+        // Don't redirect - let user see the error
+        return;
+      }
+      
       toast({
         title: "Error Loading Shop",
         description: "Failed to load shop details. Please try again.",
@@ -69,7 +91,7 @@ function ShopManagementContent() {
       });
       router.push("/shops");
     }
-  }, [shopError, toast, router]);
+  }, [shopError, shopLoading, toast, router]);
 
   const handleBack = () => {
     router.push("/shops");
@@ -177,7 +199,7 @@ function ShopManagementContent() {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-2">
+          <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="basic" className="gap-2">
               <Store className="h-4 w-4" />
               Basic Information
@@ -194,6 +216,14 @@ function ShopManagementContent() {
                   Required
                 </span>
               )}
+            </TabsTrigger>
+            <TabsTrigger
+              value="subscription"
+              className="gap-2"
+              disabled={isNewShop}
+            >
+              <Package className="h-4 w-4" />
+              Subscription
             </TabsTrigger>
           </TabsList>
 
@@ -220,6 +250,24 @@ function ShopManagementContent() {
                     <h3 className="text-xl font-semibold mb-2">Create Shop First</h3>
                     <p className="text-muted-foreground">
                       Please create your shop with basic information before connecting a Stripe account.
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </TabsContent>
+
+          <TabsContent value="subscription" className="space-y-6">
+            {!isNewShop && existingShop ? (
+              <SubscriptionTab shop={existingShop} />
+            ) : (
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="text-center py-12">
+                    <Package className="h-16 w-16 mx-auto text-muted-foreground mb-4" />
+                    <h3 className="text-xl font-semibold mb-2">Create Shop First</h3>
+                    <p className="text-muted-foreground">
+                      Please create your shop with basic information before managing subscriptions.
                     </p>
                   </div>
                 </CardContent>
