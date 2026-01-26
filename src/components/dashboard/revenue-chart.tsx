@@ -25,7 +25,7 @@ export function RevenueChart({ data, isAdmin }: RevenueChartProps) {
 
   if (!hasRevenueAccess) {
     return (
-      <Card className="col-span-4 lg:col-span-5">
+      <Card>
         <CardHeader className="border-b border-border/50 bg-primary/5">
           <CardTitle className="text-primary">Revenue Overview</CardTitle>
           <CardDescription>Revenue data not available</CardDescription>
@@ -44,7 +44,7 @@ export function RevenueChart({ data, isAdmin }: RevenueChartProps) {
   }
 
   return (
-    <Card className="col-span-4 lg:col-span-5">
+    <Card>
       <CardHeader className="border-b border-border/50 bg-primary/5">
         <CardTitle className="text-primary">Revenue Overview</CardTitle>
         <CardDescription>Total revenue summary</CardDescription>

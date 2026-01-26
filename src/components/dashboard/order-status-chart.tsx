@@ -42,7 +42,7 @@ export function OrderStatusChart({ data }: OrderStatusChartProps) {
   }
 
   return (
-    <Card className="col-span-4 lg:col-span-3">
+    <Card>
       <CardHeader className="border-b border-border/50 bg-primary/5">
         <CardTitle className="text-primary">Order Overview</CardTitle>
         <CardDescription>

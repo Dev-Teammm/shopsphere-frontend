@@ -19,6 +19,8 @@ export interface DashboardResponseDTO {
   totalRevenue: number | null; // Only for ADMIN; null for others
   pointsRevenue?: number; // Point value for vendors
   totalCustomers: number;
+  totalEmployees?: number; // Shop employees count
+  totalDeliveryAgents?: number; // Shop delivery agents count
   recentOrders: RecentOrderDTO[];
   alerts: AlertsDTO;
 }
@@ -52,6 +54,9 @@ export interface AnalyticsResponseDTO {
   activeProducts: number;
   activeProductsVsPercent: number | null;
 
+  newShopMembers?: number; // New employees and delivery agents in period
+  newShopMembersVsPercent?: number | null;
+
   topProducts: TopProductDTO[];
   categoryPerformance: CategoryPerformanceDTO[];
 }
@@ -59,6 +64,7 @@ export interface AnalyticsResponseDTO {
 export interface AnalyticsRequestDTO {
   startDate: string;
   endDate: string;
+  shopId?: string; // Optional shop ID for shop-scoped analytics
 }
 
 // Legacy types for backward compatibility (can be removed later)

@@ -78,6 +78,8 @@ export default function DashboardLayout({
       setTitle("Returns Management");
     } else if (pathname.startsWith("/dashboard/invitations")) {
       setTitle("Invitations Management");
+    } else if (pathname.startsWith("/dashboard/members")) {
+      setTitle("Members Management");
     } else if (pathname.startsWith("/dashboard/categories")) {
       setTitle("Categories Management");
     } else if (pathname === "/dashboard/analytics") {

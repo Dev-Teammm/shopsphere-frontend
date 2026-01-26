@@ -197,31 +197,6 @@ class ShopService {
     }
   }
 
-  async getStripeAccount(shopId: string): Promise<StripeAccountDTO | null> {
-    try {
-      const token = localStorage.getItem("authToken");
-      if (!token) {
-        throw new Error("Authentication token not found. Please log in again.");
-      }
-
-      const response = await apiClient.get<StripeAccountDTO>(
-        `${API_ENDPOINTS.STRIPE_ACCOUNTS.BASE}/shops/${shopId}`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        },
-      );
-      return response.data;
-    } catch (error: any) {
-      if (error.response?.status === 404) {
-        return null;
-      }
-      console.error("[ShopService] Error fetching Stripe account:", error);
-      throw error;
-    }
-  }
-
   async connectStripeAccount(
     shopId: string,
     stripeAccountData: StripeAccountDTO,
