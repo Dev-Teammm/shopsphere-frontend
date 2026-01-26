@@ -188,6 +188,13 @@ export function Sidebar({ className }: SidebarProps) {
             isActive={pathname.startsWith("/dashboard/invitations")}
           />
           <SidebarItem
+            href={getHrefWithShopSlug("/dashboard/members")}
+            icon={Users}
+            label="Members"
+            collapsed={collapsed}
+            isActive={pathname.startsWith("/dashboard/members")}
+          />
+          <SidebarItem
             href={getHrefWithShopSlug("/dashboard/categories")}
             icon={TagIcon}
             label="Categories"

@@ -37,18 +37,11 @@ export function StripeAccountTab({
   const { toast } = useToast();
   const [isConnecting, setIsConnecting] = useState(false);
 
-  // Check Stripe account status from API
+  // Mock query to check Stripe account status - in real implementation, this would call an API
   const { data: stripeAccount, isLoading } = useQuery({
     queryKey: ["stripeAccount", shop.shopId],
     queryFn: async () => {
-      try {
-        // Try to fetch from API first
-        const account = await shopService.getStripeAccount(shop.shopId);
-        if (account) return account;
-      } catch (error) {
-        console.error("Failed to fetch stripe account", error);
-      }
-      // Fallback to shop data if API fails or returns null (though 404 is handled in service)
+      // This would be replaced with actual API call to check Stripe account status
       return shop.stripeAccount || null;
     },
     enabled: !!shop.shopId,

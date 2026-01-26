@@ -4,8 +4,10 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useAppSelector } from "@/lib/redux/hooks";
 import type { RootState } from "@/lib/redux/store";
+import { useSearchParams } from "next/navigation";
 import { dashboardService } from "@/lib/services/dashboard-service";
 import { moneyFlowService } from "@/lib/services/money-flow-service";
+import { shopService } from "@/lib/services/shop-service";
 import { UserRole } from "@/lib/constants";
 import {
   Card,
@@ -118,6 +120,8 @@ type QuickFilter = "24h" | "7d" | "30d" | "90d" | "1y" | "custom";
 export default function AnalyticsPage() {
   const { user } = useAppSelector((state: RootState) => state.auth);
   const isAdmin = user?.role === UserRole.ADMIN;
+  const searchParams = useSearchParams();
+  const shopSlug = searchParams.get("shopSlug");
 
   // Date range state
   const [dateRange, setDateRange] = useState<{
@@ -140,6 +144,13 @@ export default function AnalyticsPage() {
   // Quick filter state
   const [quickFilter, setQuickFilter] = useState<QuickFilter>("30d");
 
+  // Get shop ID from slug for shop-scoped analytics
+  const { data: shop } = useQuery({
+    queryKey: ["shop-by-slug", shopSlug],
+    queryFn: () => shopService.getShopBySlug(shopSlug!),
+    enabled: !!shopSlug,
+  });
+
   // Analytics request
   const analyticsRequest: AnalyticsRequestDTO = {
     startDate: dateRange.from
@@ -148,11 +159,12 @@ export default function AnalyticsPage() {
     endDate: dateRange.to
       ? format(dateRange.to, "yyyy-MM-dd")
       : format(new Date(), "yyyy-MM-dd"),
+    shopId: shop?.shopId, // Include shopId for shop-scoped analytics
   };
 
   // Fetch analytics data
   const { data, isLoading, error, refetch } = useQuery({
-    queryKey: ["analytics", analyticsRequest],
+    queryKey: ["analytics", analyticsRequest, shopSlug],
     queryFn: () => dashboardService.getAnalyticsData(analyticsRequest),
     enabled: !!dateRange.from && !!dateRange.to,
   });
@@ -263,7 +275,9 @@ export default function AnalyticsPage() {
         <div>
           <h2 className="text-3xl font-bold tracking-tight">Analytics</h2>
           <p className="text-muted-foreground">
-            Detailed store performance metrics and insights
+            {shopSlug 
+              ? `Detailed shop performance metrics and insights for ${shop?.name || "this shop"}`
+              : "Detailed store performance metrics and insights"}
           </p>
         </div>
 
@@ -313,7 +327,7 @@ export default function AnalyticsPage() {
                 title="Total Revenue"
                 value={formatCurrency(data.totalRevenue)}
                 icon={<CreditCard className="h-4 w-4" />}
-                description="Period revenue"
+                description={shopSlug ? "Shop period revenue" : "Period revenue"}
                 trend={
                   data.totalRevenueVsPercent && data.totalRevenueVsPercent > 0
                     ? "up"
@@ -331,7 +345,7 @@ export default function AnalyticsPage() {
               title="Total Orders"
               value={data.totalOrders}
               icon={<ShoppingCart className="h-4 w-4" />}
-              description="Period orders"
+              description={shopSlug ? "Shop period orders" : "Period orders"}
               trend={
                 data.totalOrdersVsPercent && data.totalOrdersVsPercent > 0
                   ? "up"
@@ -348,7 +362,7 @@ export default function AnalyticsPage() {
               title="New Customers"
               value={data.newCustomers}
               icon={<Users className="h-4 w-4" />}
-              description="Period signups"
+              description={shopSlug ? "Shop period customers" : "Period signups"}
               trend={
                 data.newCustomersVsPercent && data.newCustomersVsPercent > 0
                   ? "up"
@@ -365,7 +379,7 @@ export default function AnalyticsPage() {
               title="Active Products"
               value={data.activeProducts}
               icon={<Package className="h-4 w-4" />}
-              description="Available products"
+              description={shopSlug ? "Shop active products" : "Available products"}
               trend={
                 data.activeProductsVsPercent && data.activeProductsVsPercent > 0
                   ? "up"
@@ -377,6 +391,26 @@ export default function AnalyticsPage() {
                   : undefined
               }
             />
+
+            {/* New Shop Members - only show for shop-scoped analytics */}
+            {shopSlug && data.newShopMembers !== undefined && (
+              <MetricCard
+                title="New Shop Members"
+                value={data.newShopMembers}
+                icon={<Users className="h-4 w-4" />}
+                description="New employees & delivery agents"
+                trend={
+                  data.newShopMembersVsPercent && data.newShopMembersVsPercent > 0
+                    ? "up"
+                    : "down"
+                }
+                trendValue={
+                  data.newShopMembersVsPercent
+                    ? Math.abs(data.newShopMembersVsPercent)
+                    : undefined
+                }
+              />
+            )}
           </div>
 
           {/* Top Products */}
@@ -385,7 +419,9 @@ export default function AnalyticsPage() {
               <CardHeader>
                 <CardTitle>Top Performing Products</CardTitle>
                 <CardDescription>
-                  Best selling products in the selected period
+                  {shopSlug 
+                    ? `Best selling products for this shop in the selected period`
+                    : "Best selling products in the selected period"}
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -429,8 +465,9 @@ export default function AnalyticsPage() {
                     Money Flow Tracking
                   </CardTitle>
                   <CardDescription>
-                    Monthly income trend - Blue line rises with revenue, falls with expenses (
-                    {moneyFlowData?.granularity || "loading..."} granularity)
+                    {shopSlug 
+                      ? `Shop income trend - Blue line rises with revenue, falls with expenses (${moneyFlowData?.granularity || "loading..."} granularity)`
+                      : `Monthly income trend - Blue line rises with revenue, falls with expenses (${moneyFlowData?.granularity || "loading..."} granularity)`}
                   </CardDescription>
                 </div>
                 <div className="flex items-center gap-2">
@@ -838,7 +875,9 @@ export default function AnalyticsPage() {
               <CardHeader>
                 <CardTitle>Category Performance</CardTitle>
                 <CardDescription>
-                  Product categories ranked by performance
+                  {shopSlug 
+                    ? `Product categories ranked by performance for this shop`
+                    : "Product categories ranked by performance"}
                 </CardDescription>
               </CardHeader>
               <CardContent>

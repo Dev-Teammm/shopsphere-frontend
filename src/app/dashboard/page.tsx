@@ -147,12 +147,22 @@ export default function DashboardPage() {
           description="Product catalog size"
         />
 
-        <StatCard
-          title="Total Customers"
-          value={data?.totalCustomers || 0}
-          icon={<Users className="h-4 w-4" />}
-          description="Registered accounts"
-        />
+        {/* Shop Members Card - shows employees and delivery agents */}
+        {shopSlug && (data?.totalEmployees !== undefined || data?.totalDeliveryAgents !== undefined) ? (
+          <StatCard
+            title="Shop Members"
+            value={(data?.totalEmployees || 0) + (data?.totalDeliveryAgents || 0)}
+            icon={<Users className="h-4 w-4" />}
+            description={`${data?.totalEmployees || 0} employees, ${data?.totalDeliveryAgents || 0} delivery agents`}
+          />
+        ) : (
+          <StatCard
+            title="Total Customers"
+            value={data?.totalCustomers || 0}
+            icon={<Users className="h-4 w-4" />}
+            description="Registered accounts"
+          />
+        )}
 
         {isAdmin && hasRevenueAccess && (
           <StatCard
@@ -181,15 +191,49 @@ export default function DashboardPage() {
       </div>
 
       {/* Primary charts and data */}
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 mb-6">
-        <div className="lg:col-span-3">
-          {isAdmin && hasRevenueAccess && (
-            <RevenueChart data={data} isAdmin={isAdmin} />
-          )}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 mb-6">
+        {/* Orders Overview - takes full width or left side */}
+        <div className="lg:col-span-8">
+          <OrderStatusChart data={data} />
         </div>
 
-        <div className="lg:col-span-1">
-          <OrderStatusChart data={data} />
+        {/* Revenue Chart or Additional Info - right side */}
+        <div className="lg:col-span-4">
+          {isAdmin && hasRevenueAccess ? (
+            <RevenueChart data={data} isAdmin={isAdmin} />
+          ) : (
+            <Card>
+              <CardHeader>
+                <CardTitle>Quick Stats</CardTitle>
+                <CardDescription>Shop performance overview</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center justify-between p-3 bg-muted/50 rounded-md">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Pending Orders</p>
+                    <p className="text-2xl font-bold">{data?.alerts?.pendingOrders || 0}</p>
+                  </div>
+                  <ShoppingCart className="h-8 w-8 text-amber-600" />
+                </div>
+                <div className="flex items-center justify-between p-3 bg-muted/50 rounded-md">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Low Stock</p>
+                    <p className="text-2xl font-bold">{data?.alerts?.lowStockProducts || 0}</p>
+                  </div>
+                  <Package className="h-8 w-8 text-red-600" />
+                </div>
+                {data?.alerts?.pendingReturns && data.alerts.pendingReturns > 0 && (
+                  <div className="flex items-center justify-between p-3 bg-muted/50 rounded-md">
+                    <div>
+                      <p className="text-sm text-muted-foreground">Pending Returns</p>
+                      <p className="text-2xl font-bold">{data.alerts.pendingReturns}</p>
+                    </div>
+                    <Package className="h-8 w-8 text-orange-600" />
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
         </div>
       </div>
 
