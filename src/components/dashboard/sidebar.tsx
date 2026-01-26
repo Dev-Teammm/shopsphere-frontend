@@ -24,6 +24,7 @@ import {
   RotateCcw,
   MessageSquareX,
   PackageCheck,
+  Navigation,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -214,6 +215,13 @@ export function Sidebar({ className }: SidebarProps) {
             label="Warehouses"
             collapsed={collapsed}
             isActive={pathname.startsWith("/dashboard/warehouses")}
+          />
+          <SidebarItem
+            href={getHrefWithShopSlug("/dashboard/delivery-areas")}
+            icon={Navigation}
+            label="Delivery Areas"
+            collapsed={collapsed}
+            isActive={pathname.startsWith("/dashboard/delivery-areas")}
           />
           <SidebarItem
             href={getHrefWithShopSlug("/dashboard/reward-system")}
