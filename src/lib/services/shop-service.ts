@@ -15,6 +15,9 @@ export interface ShopDTO {
   contactPhone?: string;
   address?: string;
   isActive?: boolean;
+  category?: string; // Legacy support
+  shopCategoryId?: number;
+  shopCategoryName?: string;
   productCount?: number;
   createdAt?: string;
   updatedAt?: string;

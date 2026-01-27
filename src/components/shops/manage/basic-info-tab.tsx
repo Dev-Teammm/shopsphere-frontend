@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,8 +15,23 @@ import {
 } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Loader2, Upload, X, Link as LinkIcon, Save, Plus } from "lucide-react";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import { Loader2, Upload, X, Link as LinkIcon, Save, Plus, Check, ChevronsUpDown } from "lucide-react";
 import { shopService, ShopDTO } from "@/lib/services/shop-service";
+import { shopCategoryService, ShopCategory } from "@/lib/services/shop-category-service";
+import { cn } from "@/lib/utils";
 import Image from "next/image";
 
 interface BasicInfoTabProps {
@@ -43,6 +58,9 @@ export function BasicInfoTab({
   const [contactPhone, setContactPhone] = useState(shop?.contactPhone || "");
   const [address, setAddress] = useState(shop?.address || "");
   const [isActive, setIsActive] = useState(shop?.isActive ?? true);
+  const [categoryName, setCategoryName] = useState(shop?.shopCategoryName || shop?.category || "");
+  const [categoryOpen, setCategoryOpen] = useState(false);
+  const [categorySearchQuery, setCategorySearchQuery] = useState("");
 
   const [logoInputMethod, setLogoInputMethod] = useState<LogoInputMethod>(null);
   const [logoUrl, setLogoUrl] = useState(shop?.logoUrl || "");
@@ -64,8 +82,50 @@ export function BasicInfoTab({
       setIsActive(shop.isActive ?? true);
       setLogoUrl(shop.logoUrl || "");
       setLogoPreview(shop.logoUrl || null);
+      setCategoryName(shop.shopCategoryName || shop.category || "");
     }
   }, [shop]);
+
+  // Debounced search for categories
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("");
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchQuery(categorySearchQuery);
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [categorySearchQuery]);
+
+  // Search categories
+  const {
+    data: categories,
+    isLoading: categoriesLoading,
+  } = useQuery({
+    queryKey: ["shop-categories-search", debouncedSearchQuery],
+    queryFn: () => shopCategoryService.searchCategories(debouncedSearchQuery),
+    enabled: categoryOpen || debouncedSearchQuery.length > 0,
+  });
+
+  // Create category mutation
+  const createCategoryMutation = useMutation({
+    mutationFn: (name: string) => shopCategoryService.createCategory(name),
+    onSuccess: (newCategory) => {
+      setCategoryName(newCategory.name);
+      setCategoryOpen(false);
+      toast({
+        title: "Category Created",
+        description: `Category "${newCategory.name}" has been created and selected.`,
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to create category.",
+        variant: "destructive",
+      });
+    },
+  });
 
   const createShopMutation = useMutation({
     mutationFn: async (data: {
@@ -136,6 +196,7 @@ export function BasicInfoTab({
     setContactPhone("");
     setAddress("");
     setIsActive(true);
+    setCategoryName("");
     setLogoInputMethod(null);
     setLogoUrl("");
     setLogoFile(null);
@@ -298,6 +359,7 @@ export function BasicInfoTab({
       address: address.trim(),
       isActive: isActive,
       logoUrl: logoInputMethod === "url" && logoUrl ? logoUrl : undefined,
+      shopCategoryName: categoryName.trim() || undefined,
     };
 
     if (isNewShop) {
@@ -373,6 +435,117 @@ export function BasicInfoTab({
                 {isActive ? "Active" : "Inactive"}
               </Label>
             </div>
+          </div>
+
+          <div className="grid gap-2">
+            <Label htmlFor="category">Shop Category (optional)</Label>
+            <Popover open={categoryOpen} onOpenChange={setCategoryOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  role="combobox"
+                  aria-expanded={categoryOpen}
+                  className="w-full justify-between"
+                  disabled={isLoading}
+                >
+                  {categoryName || "Select category..."}
+                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
+                <Command>
+                  <CommandInput
+                    placeholder="Search categories..."
+                    value={categorySearchQuery}
+                    onValueChange={setCategorySearchQuery}
+                  />
+                  <CommandList>
+                    <CommandEmpty>
+                      {categoriesLoading ? (
+                        <div className="flex items-center justify-center py-4">
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        </div>
+                      ) : categorySearchQuery.trim() ? (
+                        <div className="py-4 text-center">
+                          <p className="text-sm text-muted-foreground mb-2">
+                            No category found matching "{categorySearchQuery}"
+                          </p>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              if (categorySearchQuery.trim()) {
+                                createCategoryMutation.mutate(categorySearchQuery.trim());
+                              }
+                            }}
+                            disabled={createCategoryMutation.isPending || !categorySearchQuery.trim()}
+                            className="gap-2"
+                          >
+                            {createCategoryMutation.isPending ? (
+                              <>
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                                Creating...
+                              </>
+                            ) : (
+                              <>
+                                <Plus className="h-4 w-4" />
+                                Create "{categorySearchQuery}"
+                              </>
+                            )}
+                          </Button>
+                        </div>
+                      ) : (
+                        <div className="py-6 text-center text-sm text-muted-foreground">
+                          Start typing to search categories...
+                        </div>
+                      )}
+                    </CommandEmpty>
+                    <CommandGroup>
+                      {categories?.map((category) => (
+                        <CommandItem
+                          key={category.id}
+                          value={category.name}
+                          onSelect={() => {
+                            setCategoryName(category.name);
+                            setCategoryOpen(false);
+                            setCategorySearchQuery("");
+                          }}
+                        >
+                          <Check
+                            className={cn(
+                              "mr-2 h-4 w-4",
+                              categoryName === category.name
+                                ? "opacity-100"
+                                : "opacity-0"
+                            )}
+                          />
+                          {category.name}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
+            {categoryName && (
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">
+                  Selected: <strong>{categoryName}</strong>
+                </span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setCategoryName("");
+                    setCategorySearchQuery("");
+                  }}
+                  disabled={isLoading}
+                  className="h-6 px-2"
+                >
+                  <X className="h-3 w-3" />
+                </Button>
+              </div>
+            )}
           </div>
 
           <div className="grid gap-2">
