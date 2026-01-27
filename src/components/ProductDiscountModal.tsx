@@ -69,12 +69,14 @@ interface ProductDiscountModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   selectedProductId: string;
+  shopId?: string | null;
 }
 
 export function ProductDiscountModal({
   open,
   onOpenChange,
   selectedProductId,
+  shopId,
 }: ProductDiscountModalProps) {
   const [selectedDiscount, setSelectedDiscount] = useState<string>("");
   const [searchTerm, setSearchTerm] = useState("");
@@ -87,10 +89,14 @@ export function ProductDiscountModal({
     isLoading: discountsLoading,
     refetch: refetchDiscounts,
   } = useQuery({
-    queryKey: ["active-discounts"],
-    queryFn: () =>
-      discountService.getAllDiscounts(0, 100, "createdAt", "desc", true),
-    enabled: open,
+    queryKey: ["active-discounts", shopId],
+    queryFn: () => {
+      if (!shopId) {
+        throw new Error("Shop ID is required to fetch discounts");
+      }
+      return discountService.getAllDiscounts(shopId, 0, 100, "createdAt", "desc", true);
+    },
+    enabled: open && !!shopId,
   });
 
   const { data: productData, isLoading: productLoading } = useQuery({

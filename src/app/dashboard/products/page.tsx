@@ -817,6 +817,7 @@ export default function ProductsPage() {
         open={discountModalOpen}
         onOpenChange={setDiscountModalOpen}
         selectedProductId={selectedProductId}
+        shopId={shopId}
       />
 
       {/* Delete Confirmation Modal */}
