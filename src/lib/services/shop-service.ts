@@ -1,5 +1,6 @@
 import apiClient from "../api-client";
 import { API_ENDPOINTS } from "../constants";
+import { ShopCapability } from "./subscription-service";
 
 export interface ShopDTO {
   shopId: string;
@@ -22,6 +23,7 @@ export interface ShopDTO {
   createdAt?: string;
   updatedAt?: string;
   stripeAccount?: StripeAccountDTO;
+  primaryCapability?: ShopCapability;
 }
 
 export interface StripeAccountDTO {

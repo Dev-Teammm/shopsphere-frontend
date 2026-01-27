@@ -200,6 +200,15 @@ export default function SubscriptionsPage() {
                     </span>
                   </div>
                 </div>
+
+                {plan.capability && (
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium">Capability:</p>
+                    <Badge variant="outline" className="text-xs">
+                      {plan.capability.replace(/_/g, " ")}
+                    </Badge>
+                  </div>
+                )}
                 
                 <div className="pt-4 flex justify-end gap-2">
                   <Button

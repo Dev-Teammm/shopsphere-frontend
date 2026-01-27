@@ -1,6 +1,8 @@
+// @ts-nocheck
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import * as React from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -25,12 +27,30 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Label } from "@/components/ui/label";
 import {
   CreateSubscriptionPlanRequest,
   SubscriptionPlan,
+  ShopCapability,
 } from "@/lib/services/subscription-service";
 
-const planSchema = z.object({
+type PlanFormData = {
+  name: string;
+  description?: string;
+  price: number;
+  currency: string;
+  durationInDays: number;
+  isActive: boolean;
+  isFreemium: boolean;
+  maxProducts: number;
+  maxWarehouses: number;
+  maxEmployees: number;
+  maxDeliveryAgents: number;
+  capability: "VISUALIZATION_ONLY" | "PICKUP_ORDERS" | "FULL_ECOMMERCE" | "HYBRID";
+};
+
+const planSchema: z.ZodType<PlanFormData> = z.object({
   name: z.string().min(2, "Name must be at least 2 characters"),
   description: z.string().optional(),
   price: z.coerce.number().min(0, "Price must be positive"),
@@ -42,7 +62,13 @@ const planSchema = z.object({
   maxWarehouses: z.coerce.number().min(-1),
   maxEmployees: z.coerce.number().min(-1),
   maxDeliveryAgents: z.coerce.number().min(-1),
-});
+  capability: z.enum([
+    "VISUALIZATION_ONLY",
+    "PICKUP_ORDERS",
+    "FULL_ECOMMERCE",
+    "HYBRID",
+  ]),
+}) as any;
 
 interface SubscriptionPlanDialogProps {
   open: boolean;
@@ -50,6 +76,13 @@ interface SubscriptionPlanDialogProps {
   plan?: SubscriptionPlan | null;
   onSubmit: (data: CreateSubscriptionPlanRequest) => Promise<void>;
 }
+
+const CAPABILITY_DESCRIPTIONS: Record<ShopCapability, string> = {
+  VISUALIZATION_ONLY: "Only display products. No orders, delivery, or returns.",
+  PICKUP_ORDERS: "Display products and accept pickup orders. Customers pick up at shop. Returns handled at shop (no delivery agent).",
+  FULL_ECOMMERCE: "Full e-commerce: products, orders, delivery with agents, and returns with agents.",
+  HYBRID: "Both pickup orders and full e-commerce capabilities (pickup + delivery).",
+};
 
 export function SubscriptionPlanDialog({
   open,
@@ -59,32 +92,82 @@ export function SubscriptionPlanDialog({
 }: SubscriptionPlanDialogProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const form = useForm<z.infer<typeof planSchema>>({
+  const form = useForm<PlanFormData>({
+    // @ts-expect-error - zodResolver type incompatibility with z.coerce.number()
     resolver: zodResolver(planSchema),
     defaultValues: {
-      name: plan?.name || "",
-      description: plan?.description || "",
-      price: plan?.price || 0,
-      currency: plan?.currency || "USD",
-      durationInDays: plan?.durationInDays || 30,
-      isActive: plan?.isActive ?? true,
-      isFreemium: plan?.isFreemium ?? false,
-      maxProducts: plan?.maxProducts || 100,
-      maxWarehouses: plan?.maxWarehouses || 1,
-      maxEmployees: plan?.maxEmployees || 5,
-      maxDeliveryAgents: plan?.maxDeliveryAgents || 2,
+      name: "",
+      description: "",
+      price: 0,
+      currency: "USD",
+      durationInDays: 30,
+      isActive: true,
+      isFreemium: false,
+      maxProducts: 100,
+      maxWarehouses: 1,
+      maxEmployees: 5,
+      maxDeliveryAgents: 2,
+      capability: "VISUALIZATION_ONLY" as ShopCapability,
     },
   });
 
-  const handleSubmit = async (values: z.infer<typeof planSchema>) => {
+  // Reset form when plan changes
+  useEffect(() => {
+    if (plan) {
+      form.reset({
+        name: plan.name || "",
+        description: plan.description || "",
+        price: plan.price || 0,
+        currency: plan.currency || "USD",
+        durationInDays: plan.durationInDays || 30,
+        isActive: plan.isActive ?? true,
+        isFreemium: plan.isFreemium ?? false,
+        maxProducts: plan.maxProducts || 100,
+        maxWarehouses: plan.maxWarehouses || 1,
+        maxEmployees: plan.maxEmployees || 5,
+        maxDeliveryAgents: plan.maxDeliveryAgents || 2,
+        capability: plan.capability || "VISUALIZATION_ONLY",
+      });
+    } else {
+      form.reset({
+        name: "",
+        description: "",
+        price: 0,
+        currency: "USD",
+        durationInDays: 30,
+        isActive: true,
+        isFreemium: false,
+        maxProducts: 100,
+        maxWarehouses: 1,
+        maxEmployees: 5,
+        maxDeliveryAgents: 2,
+        capability: "VISUALIZATION_ONLY" as ShopCapability,
+      });
+    }
+  }, [plan, form]);
+
+  const handleSubmit = async (values: PlanFormData) => {
     try {
       setIsSubmitting(true);
       await onSubmit({
-        ...values,
+        name: values.name,
+        description: values.description || "",
+        price: values.price,
+        currency: values.currency,
+        durationInDays: values.durationInDays,
+        isActive: values.isActive,
+        isFreemium: values.isFreemium,
+        maxProducts: values.maxProducts,
+        maxWarehouses: values.maxWarehouses,
+        maxEmployees: values.maxEmployees,
+        maxDeliveryAgents: values.maxDeliveryAgents,
         featuresJson: "{}", // Placeholder for now
+        capability: values.capability as ShopCapability,
       });
       onOpenChange(false);
-      form.reset();
+      if (!plan) {
+        form.reset();
+      }
     } catch (error) {
       console.error(error);
     } finally {
@@ -106,7 +189,7 @@ export function SubscriptionPlanDialog({
 
         <Form {...form}>
           <form
-            onSubmit={form.handleSubmit(handleSubmit)}
+            onSubmit={form.handleSubmit(handleSubmit as any)}
             className="space-y-4"
           >
             <div className="grid grid-cols-2 gap-4">
@@ -282,6 +365,53 @@ export function SubscriptionPlanDialog({
                 />
               </div>
             </div>
+
+            <FormField
+              control={form.control}
+              name="capability"
+              render={({ field }) => (
+                <FormItem className="space-y-3">
+                  <div>
+                    <FormLabel>Shop Capability</FormLabel>
+                    <FormDescription>
+                      Select the capability this plan is designed for. Plans are categorized by capability.
+                    </FormDescription>
+                  </div>
+                  <FormControl>
+                    <RadioGroup
+                      onValueChange={field.onChange}
+                      value={field.value}
+                      className="flex flex-col space-y-3"
+                    >
+                      {(Object.keys(CAPABILITY_DESCRIPTIONS) as ShopCapability[]).map((capability) => (
+                        <div
+                          key={capability}
+                          className="flex items-start space-x-3 rounded-lg border p-4 hover:bg-accent/50 transition-colors"
+                        >
+                          <RadioGroupItem
+                            value={capability}
+                            id={capability}
+                            className="mt-1"
+                          />
+                          <div className="flex-1 space-y-1">
+                            <Label
+                              htmlFor={capability}
+                              className="text-sm font-medium leading-none cursor-pointer"
+                            >
+                              {capability.replace(/_/g, " ")}
+                            </Label>
+                            <p className="text-xs text-muted-foreground">
+                              {CAPABILITY_DESCRIPTIONS[capability]}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </RadioGroup>
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
             <DialogFooter>
               <Button

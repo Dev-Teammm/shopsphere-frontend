@@ -31,6 +31,8 @@ import {
 import { Loader2, Upload, X, Link as LinkIcon, Save, Plus, Check, ChevronsUpDown } from "lucide-react";
 import { shopService, ShopDTO } from "@/lib/services/shop-service";
 import { shopCategoryService, ShopCategory } from "@/lib/services/shop-category-service";
+import { ShopCapability } from "@/lib/services/subscription-service";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { cn } from "@/lib/utils";
 import Image from "next/image";
 
@@ -61,6 +63,9 @@ export function BasicInfoTab({
   const [categoryName, setCategoryName] = useState(shop?.shopCategoryName || shop?.category || "");
   const [categoryOpen, setCategoryOpen] = useState(false);
   const [categorySearchQuery, setCategorySearchQuery] = useState("");
+  const [primaryCapability, setPrimaryCapability] = useState<ShopCapability | undefined>(
+    shop?.primaryCapability
+  );
 
   const [logoInputMethod, setLogoInputMethod] = useState<LogoInputMethod>(null);
   const [logoUrl, setLogoUrl] = useState(shop?.logoUrl || "");
@@ -83,6 +88,7 @@ export function BasicInfoTab({
       setLogoUrl(shop.logoUrl || "");
       setLogoPreview(shop.logoUrl || null);
       setCategoryName(shop.shopCategoryName || shop.category || "");
+      setPrimaryCapability(shop.primaryCapability);
     }
   }, [shop]);
 
@@ -197,6 +203,7 @@ export function BasicInfoTab({
     setAddress("");
     setIsActive(true);
     setCategoryName("");
+    setPrimaryCapability(undefined);
     setLogoInputMethod(null);
     setLogoUrl("");
     setLogoFile(null);
@@ -351,6 +358,15 @@ export function BasicInfoTab({
       return;
     }
 
+    if (isNewShop && !primaryCapability) {
+      toast({
+        title: "Validation Error",
+        description: "Please select a shop capability to continue",
+        variant: "destructive",
+      });
+      return;
+    }
+
     const shopData: Partial<ShopDTO> = {
       name: name.trim(),
       description: description.trim() || undefined,
@@ -360,6 +376,7 @@ export function BasicInfoTab({
       isActive: isActive,
       logoUrl: logoInputMethod === "url" && logoUrl ? logoUrl : undefined,
       shopCategoryName: categoryName.trim() || undefined,
+      primaryCapability: primaryCapability,
     };
 
     if (isNewShop) {
@@ -544,6 +561,80 @@ export function BasicInfoTab({
                 >
                   <X className="h-3 w-3" />
                 </Button>
+              </div>
+            )}
+          </div>
+
+          <div className="grid gap-2">
+            <Label htmlFor="capability">
+              Shop Capability {isNewShop && <span className="text-destructive">*</span>}
+            </Label>
+            <p className="text-sm text-muted-foreground mb-2">
+              {isNewShop 
+                ? "Select how your shop will operate. This determines which subscription plans are available."
+                : "Update your shop's operational capability. This determines which subscription plans are available."}
+            </p>
+            <RadioGroup
+              value={primaryCapability || ""}
+              onValueChange={(value) => setPrimaryCapability(value as ShopCapability)}
+              className="space-y-3"
+              disabled={isLoading}
+            >
+              <div className="flex items-start space-x-3 rounded-lg border p-4 hover:bg-accent/50 transition-colors">
+                <RadioGroupItem value="VISUALIZATION_ONLY" id="VISUALIZATION_ONLY" className="mt-1" />
+                <div className="flex-1 space-y-1">
+                  <Label htmlFor="VISUALIZATION_ONLY" className="text-sm font-medium leading-none cursor-pointer">
+                    Visualization Only
+                  </Label>
+                  <p className="text-xs text-muted-foreground">
+                    Only display products. No orders, delivery, or returns.
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-start space-x-3 rounded-lg border p-4 hover:bg-accent/50 transition-colors">
+                <RadioGroupItem value="PICKUP_ORDERS" id="PICKUP_ORDERS" className="mt-1" />
+                <div className="flex-1 space-y-1">
+                  <Label htmlFor="PICKUP_ORDERS" className="text-sm font-medium leading-none cursor-pointer">
+                    Pickup Orders
+                  </Label>
+                  <p className="text-xs text-muted-foreground">
+                    Display products and accept pickup orders. Customers pick up at shop. Returns handled at shop (no delivery agent).
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-start space-x-3 rounded-lg border p-4 hover:bg-accent/50 transition-colors">
+                <RadioGroupItem value="FULL_ECOMMERCE" id="FULL_ECOMMERCE" className="mt-1" />
+                <div className="flex-1 space-y-1">
+                  <Label htmlFor="FULL_ECOMMERCE" className="text-sm font-medium leading-none cursor-pointer">
+                    Full E-commerce
+                  </Label>
+                  <p className="text-xs text-muted-foreground">
+                    Full e-commerce: products, orders, delivery with agents, and returns with agents.
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-start space-x-3 rounded-lg border p-4 hover:bg-accent/50 transition-colors">
+                <RadioGroupItem value="HYBRID" id="HYBRID" className="mt-1" />
+                <div className="flex-1 space-y-1">
+                  <Label htmlFor="HYBRID" className="text-sm font-medium leading-none cursor-pointer">
+                    Hybrid
+                  </Label>
+                  <p className="text-xs text-muted-foreground">
+                    Both pickup orders and full e-commerce capabilities (pickup + delivery).
+                  </p>
+                </div>
+              </div>
+            </RadioGroup>
+            {isNewShop && !primaryCapability && (
+              <p className="text-sm text-destructive">
+                Please select a shop capability to continue.
+              </p>
+            )}
+            {!isNewShop && primaryCapability && (
+              <div className="flex items-center gap-2 mt-2">
+                <span className="text-sm text-muted-foreground">
+                  Current capability: <strong className="text-foreground">{primaryCapability.replace(/_/g, " ")}</strong>
+                </span>
               </div>
             )}
           </div>
