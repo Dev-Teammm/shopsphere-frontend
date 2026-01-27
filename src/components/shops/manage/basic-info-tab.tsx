@@ -35,6 +35,8 @@ import { ShopCapability } from "@/lib/services/subscription-service";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { cn } from "@/lib/utils";
 import Image from "next/image";
+import { CapabilityChangeDialog } from "./capability-change-dialog";
+import { CapabilityErrorDialog } from "./capability-error-dialog";
 
 interface BasicInfoTabProps {
   shop: ShopDTO | null;
@@ -53,6 +55,38 @@ export function BasicInfoTab({
 }: BasicInfoTabProps) {
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Helper function to extract error message from API error
+  const extractErrorMessage = (error: any): { title: string; message: string } => {
+    let errorMessage = "An error occurred. Please try again.";
+    let errorTitle = "Error";
+    
+    if (error?.response?.data) {
+      if (typeof error.response.data === "string") {
+        errorMessage = error.response.data;
+      } else if (error.response.data.message) {
+        errorMessage = error.response.data.message;
+      } else if (error.response.data.error) {
+        errorMessage = error.response.data.error;
+      }
+    } else if (error?.message) {
+      errorMessage = error.message;
+    }
+    
+    // Determine appropriate title based on error content
+    const lowerMessage = errorMessage.toLowerCase();
+    if (lowerMessage.includes("subscription") || 
+        lowerMessage.includes("capability") ||
+        lowerMessage.includes("plan")) {
+      errorTitle = "Subscription Plan Mismatch";
+    } else if (lowerMessage.includes("unauthorized") || lowerMessage.includes("forbidden")) {
+      errorTitle = "Access Denied";
+    } else if (lowerMessage.includes("not found")) {
+      errorTitle = "Not Found";
+    }
+    
+    return { title: errorTitle, message: errorMessage };
+  };
 
   const [name, setName] = useState(shop?.name || "");
   const [description, setDescription] = useState(shop?.description || "");
@@ -75,6 +109,19 @@ export function BasicInfoTab({
   );
   const [logoUrlValidating, setLogoUrlValidating] = useState(false);
   const [logoUrlError, setLogoUrlError] = useState<string | null>(null);
+  const [showCapabilityDialog, setShowCapabilityDialog] = useState(false);
+  const [pendingCapabilityChange, setPendingCapabilityChange] = useState<ShopCapability | null>(null);
+  const [pendingOperations, setPendingOperations] = useState<{
+    pendingOrders: number;
+    pendingReturns: number;
+    pendingAppeals: number;
+    pendingDeliveries: number;
+    total: number;
+  } | null>(null);
+  const [isLoadingPendingOps, setIsLoadingPendingOps] = useState(false);
+  const [showErrorDialog, setShowErrorDialog] = useState(false);
+  const [errorDialogTitle, setErrorDialogTitle] = useState("Error");
+  const [errorDialogMessage, setErrorDialogMessage] = useState("");
 
   // Initialize form with existing shop data
   useEffect(() => {
@@ -184,14 +231,30 @@ export function BasicInfoTab({
         variant: "default",
       });
       onShopUpdated(updatedShop);
+      // Reset capability dialog state on success
+      setShowCapabilityDialog(false);
+      setPendingCapabilityChange(null);
+      setPendingOperations(null);
     },
     onError: (error: any) => {
-      toast({
-        title: "Error updating shop",
-        description:
-          error.message || "Failed to update shop. Please try again.",
-        variant: "destructive",
-      });
+      const { title, message } = extractErrorMessage(error);
+      
+      // Show error in dialog instead of toast
+      setErrorDialogTitle(title);
+      setErrorDialogMessage(message);
+      setShowErrorDialog(true);
+      
+      // If it's a subscription/capability error, reset the capability change
+      const lowerMessage = message.toLowerCase();
+      if (lowerMessage.includes("subscription") || 
+          lowerMessage.includes("capability") ||
+          lowerMessage.includes("plan")) {
+        // Revert to original capability
+        setPrimaryCapability(shop?.primaryCapability);
+        setShowCapabilityDialog(false);
+        setPendingCapabilityChange(null);
+        setPendingOperations(null);
+      }
     },
   });
 
@@ -396,6 +459,7 @@ export function BasicInfoTab({
     createShopMutation.isPending || updateShopMutation.isPending;
 
   return (
+    <>
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
@@ -576,9 +640,36 @@ export function BasicInfoTab({
             </p>
             <RadioGroup
               value={primaryCapability || ""}
-              onValueChange={(value) => setPrimaryCapability(value as ShopCapability)}
+              onValueChange={async (value) => {
+                const newCapability = value as ShopCapability;
+                // If capability is actually changing and shop exists, check for pending operations
+                if (!isNewShop && shop && shop.primaryCapability && shop.primaryCapability !== newCapability) {
+                  setIsLoadingPendingOps(true);
+                  try {
+                    const ops = await shopService.getPendingOperationsForTransition(shop.shopId, newCapability);
+                    setPendingOperations(ops);
+                    setPendingCapabilityChange(newCapability);
+                    setShowCapabilityDialog(true);
+                  } catch (error: any) {
+                    const { title, message } = extractErrorMessage(error);
+                    
+                    // Show error in dialog instead of toast
+                    setErrorDialogTitle(title);
+                    setErrorDialogMessage(message);
+                    setShowErrorDialog(true);
+                    
+                    // Revert to original capability
+                    setPrimaryCapability(shop.primaryCapability);
+                  } finally {
+                    setIsLoadingPendingOps(false);
+                  }
+                } else {
+                  // For new shops or no change, update immediately
+                  setPrimaryCapability(newCapability);
+                }
+              }}
               className="space-y-3"
-              disabled={isLoading}
+              disabled={isLoading || isLoadingPendingOps}
             >
               <div className="flex items-start space-x-3 rounded-lg border p-4 hover:bg-accent/50 transition-colors">
                 <RadioGroupItem value="VISUALIZATION_ONLY" id="VISUALIZATION_ONLY" className="mt-1" />
@@ -820,5 +911,63 @@ export function BasicInfoTab({
         </div>
       </CardContent>
     </Card>
+
+      <CapabilityChangeDialog
+        open={showCapabilityDialog}
+        onOpenChange={(open) => {
+          setShowCapabilityDialog(open);
+          if (!open) {
+            // Reset state when dialog closes
+            setPendingCapabilityChange(null);
+            setPendingOperations(null);
+          }
+        }}
+        onConfirm={() => {
+          if (pendingCapabilityChange && shop) {
+            // Update the capability and proceed with form submission
+            setPrimaryCapability(pendingCapabilityChange);
+            setShowCapabilityDialog(false);
+            
+            // Automatically submit the form with the new capability
+            const shopData: Partial<ShopDTO> = {
+              name: name.trim(),
+              description: description.trim() || undefined,
+              contactEmail: contactEmail.trim(),
+              contactPhone: contactPhone.trim(),
+              address: address.trim(),
+              isActive: isActive,
+              logoUrl: logoInputMethod === "url" && logoUrl ? logoUrl : undefined,
+              shopCategoryName: categoryName.trim() || undefined,
+              primaryCapability: pendingCapabilityChange,
+            };
+            
+            updateShopMutation.mutate({
+              shopId: shop.shopId,
+              shopData,
+            });
+            
+            setPendingCapabilityChange(null);
+            setPendingOperations(null);
+          }
+        }}
+        currentCapability={shop?.primaryCapability}
+        newCapability={pendingCapabilityChange || "VISUALIZATION_ONLY"}
+        pendingOperations={pendingOperations || {
+          pendingOrders: 0,
+          pendingReturns: 0,
+          pendingAppeals: 0,
+          pendingDeliveries: 0,
+          total: 0,
+        }}
+        isLoading={isLoadingPendingOps || updateShopMutation.isPending}
+      />
+
+      <CapabilityErrorDialog
+        open={showErrorDialog}
+        onOpenChange={setShowErrorDialog}
+        title={errorDialogTitle}
+        message={errorDialogMessage}
+      />
+    </>
   );
 }

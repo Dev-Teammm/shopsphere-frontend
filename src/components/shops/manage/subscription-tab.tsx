@@ -57,24 +57,38 @@ export function SubscriptionTab({ shop }: SubscriptionTabProps) {
 
   // Fetch available plans filtered by shop's capability
   // getActivePlansForShop already filters by shop's primaryCapability and includes freemiumConsumed status
-  const { data: matchingPlans, isLoading: plansLoading } = useQuery({
+  const { 
+    data: matchingPlans, 
+    isLoading: plansLoading,
+    isFetching: plansFetching
+  } = useQuery({
     queryKey: ["subscription-plans", "active", shop.shopId, shop.primaryCapability],
     queryFn: () => subscriptionService.getAllPlans(true, shop.shopId),
     enabled: !!shop.shopId, // Only fetch if shop exists
   });
 
   // Fetch all other active plans (for "Discover other plans" section)
-  const { data: allActivePlans } = useQuery({
+  const { 
+    data: allActivePlans,
+    isLoading: allPlansLoading 
+  } = useQuery({
     queryKey: ["subscription-plans", "all-active"],
     queryFn: () => subscriptionService.getAllPlans(true),
     enabled: !!shop.shopId && !!shop.primaryCapability,
   });
 
   // Filter plans: matching vs non-matching
-  const plans = matchingPlans || [];
-  const otherPlans = (allActivePlans || []).filter(
+  // Only set plans after data has been fetched (not undefined)
+  const plans = matchingPlans ?? [];
+  const otherPlans = (allActivePlans ?? []).filter(
     (plan) => plan.capability !== shop.primaryCapability
   );
+  
+  // Determine if we should show loading state
+  // Show loading if: query is loading OR data hasn't been fetched yet (undefined)
+  // Use isLoading for initial load, isFetching for refetches
+  const isPlansLoading = plansLoading || (plansFetching && matchingPlans === undefined);
+  const hasPlansData = matchingPlans !== undefined; // Data has been fetched at least once
 
   // Fetch current subscription
   const { data: activeSubscription, isLoading: activeLoading } = useQuery({
@@ -91,7 +105,10 @@ export function SubscriptionTab({ shop }: SubscriptionTabProps) {
   // Note: freemiumConsumed is now included in plans data from backend
 
   // Check if subscription system is enabled
-  const { data: isSystemEnabled } = useQuery({
+  const { 
+    data: isSystemEnabled, 
+    isLoading: systemStatusLoading 
+  } = useQuery({
     queryKey: ["subscription-system-status"],
     queryFn: subscriptionService.isSystemEnabled,
   });
@@ -295,6 +312,20 @@ export function SubscriptionTab({ shop }: SubscriptionTabProps) {
   const handleToggleAutoRenew = (checked: boolean) => {
     toggleAutoRenewMutation.mutate(checked);
   };
+
+  // Show loading state while checking system status (after all hooks are declared)
+  if (systemStatusLoading) {
+    return (
+      <Card>
+        <CardContent className="pt-6">
+          <div className="flex flex-col items-center justify-center py-12">
+            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground mb-4" />
+            <p className="text-sm text-muted-foreground">Checking subscription system status...</p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   // Render plan card component
   const renderPlanCard = (plan: SubscriptionPlan, isMatching: boolean) => {
@@ -572,28 +603,38 @@ export function SubscriptionTab({ shop }: SubscriptionTabProps) {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {plansLoading ? (
+          {isPlansLoading ? (
             <div className="space-y-4">
-              <Skeleton className="h-48 w-full" />
-              <Skeleton className="h-48 w-full" />
+              <div className="flex flex-col items-center justify-center py-12">
+                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground mb-4" />
+                <p className="text-sm text-muted-foreground">Loading subscription plans...</p>
+              </div>
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                <Skeleton className="h-64 w-full" />
+                <Skeleton className="h-64 w-full" />
+                <Skeleton className="h-64 w-full" />
+              </div>
+            </div>
+          ) : hasPlansData && plans.length === 0 ? (
+            <div className="text-center py-12">
+              <CreditCard className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+              <p className="text-muted-foreground font-medium mb-2">No Plans Available</p>
+              <p className="text-sm text-muted-foreground">
+                {shop.primaryCapability 
+                  ? `No subscription plans are currently available for ${shop.primaryCapability.replace(/_/g, " ")} shops. Please contact support or update your shop capability.`
+                  : "No subscription plans are available. Please set your shop capability first."}
+              </p>
             </div>
           ) : (
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {plans?.map((plan) => renderPlanCard(plan, true))}
-              {plans?.length === 0 && (
-                <div className="col-span-full text-center p-12 text-muted-foreground">
-                  {shop.primaryCapability 
-                    ? `No plans available for ${shop.primaryCapability.replace(/_/g, " ")} shops. Please contact support or update your shop capability.`
-                    : "No subscription plans available. Please set your shop capability first."}
-                </div>
-              )}
+              {plans.map((plan) => renderPlanCard(plan, true))}
             </div>
           )}
         </CardContent>
       </Card>
 
       {/* Discover Other Plans */}
-      {otherPlans && otherPlans.length > 0 && (
+      {allActivePlans !== undefined && (
         <Card>
           <CardHeader>
             <CardTitle>Discover Other Plans</CardTitle>
@@ -602,9 +643,26 @@ export function SubscriptionTab({ shop }: SubscriptionTabProps) {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {otherPlans.map((plan) => renderPlanCard(plan, false))}
-            </div>
+            {allPlansLoading ? (
+              <div className="space-y-4">
+                <div className="flex flex-col items-center justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground mb-2" />
+                  <p className="text-xs text-muted-foreground">Loading other plans...</p>
+                </div>
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                  <Skeleton className="h-64 w-full" />
+                  <Skeleton className="h-64 w-full" />
+                </div>
+              </div>
+            ) : otherPlans.length > 0 ? (
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                {otherPlans.map((plan) => renderPlanCard(plan, false))}
+              </div>
+            ) : (
+              <div className="text-center py-8 text-sm text-muted-foreground">
+                No other plans available for different capabilities.
+              </div>
+            )}
           </CardContent>
         </Card>
       )}

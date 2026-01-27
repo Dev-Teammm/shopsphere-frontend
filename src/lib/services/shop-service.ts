@@ -280,6 +280,50 @@ class ShopService {
       );
     }
   }
+
+  async getPendingOperationsForTransition(
+    shopId: string,
+    newCapability: ShopCapability,
+  ): Promise<{
+    pendingOrders: number;
+    pendingReturns: number;
+    pendingAppeals: number;
+    pendingDeliveries: number;
+    total: number;
+  }> {
+    try {
+      const token = localStorage.getItem("authToken");
+      if (!token) {
+        throw new Error("Authentication token not found. Please log in again.");
+      }
+
+      const response = await apiClient.get<{
+        pendingOrders: number;
+        pendingReturns: number;
+        pendingAppeals: number;
+        pendingDeliveries: number;
+        total: number;
+      }>(
+        `/capability-transitions/pending-operations/${shopId}`,
+        {
+          params: {
+            newCapability: newCapability,
+          },
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        },
+      );
+      return response.data;
+    } catch (error: any) {
+      console.error("[ShopService] Error getting pending operations:", error);
+      throw new Error(
+        error.response?.data?.message ||
+          error.message ||
+          "Failed to get pending operations. Please try again.",
+      );
+    }
+  }
 }
 
 export const shopService = new ShopService();
