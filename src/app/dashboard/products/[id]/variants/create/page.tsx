@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { useRouter, useParams } from "next/navigation";
+import { useRouter, useParams, useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -75,7 +75,9 @@ type CreateVariantFormData = z.infer<typeof createVariantSchema>;
 export default function CreateVariantPage() {
   const router = useRouter();
   const params = useParams();
+  const searchParams = useSearchParams();
   const productId = params.id as string;
+  const shopSlug = searchParams.get("shopSlug");
 
   const [isCreating, setIsCreating] = useState(false);
   const [selectedImages, setSelectedImages] = useState<File[]>([]);
@@ -270,7 +272,10 @@ export default function CreateVariantPage() {
       );
 
       toast.success("Variant created successfully");
-      router.push(`/dashboard/products/${productId}/update?tab=variants`);
+      const returnUrl = shopSlug 
+        ? `/dashboard/products/${productId}/update?tab=variants&shopSlug=${shopSlug}`
+        : `/dashboard/products/${productId}/update?tab=variants`;
+      router.push(returnUrl);
     } catch (error: any) {
       console.error("Error creating variant:", error);
       console.log("Error type:", typeof error);
@@ -396,7 +401,16 @@ export default function CreateVariantPage() {
   return (
     <div className="container mx-auto py-6 space-y-6">
       <div className="flex items-center gap-4">
-        <Button variant="outline" size="sm" onClick={() => router.back()}>
+        <Button 
+          variant="outline" 
+          size="sm" 
+          onClick={() => {
+            const returnUrl = shopSlug 
+              ? `/dashboard/products/${productId}/update?tab=variants&shopSlug=${shopSlug}`
+              : `/dashboard/products/${productId}/update?tab=variants`;
+            router.push(returnUrl);
+          }}
+        >
           <ArrowLeft className="w-4 h-4 mr-2" />
           Back
         </Button>
