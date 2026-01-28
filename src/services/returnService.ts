@@ -157,15 +157,34 @@ class ReturnService {
    * Review return request (Admin/Employee only)
    */
   async reviewReturnRequest(
-    decision: ReturnDecisionDTO
+    decision: ReturnDecisionDTO,
+    refundScreenshot?: File
   ): Promise<ReturnRequestDTO> {
-    const requestData = {
-      ...decision,
-      returnRequestId: String(decision.returnRequestId), // Ensure ID is sent as string
-    };
+    // Backend expects multipart/form-data because it accepts file uploads
+    const formData = new FormData();
+    formData.append("returnRequestId", String(decision.returnRequestId));
+    formData.append("decision", decision.decision);
+    
+    if (decision.decisionNotes) {
+      formData.append("decisionNotes", decision.decisionNotes);
+    }
+    
+    if (decision.refundNotes) {
+      formData.append("refundNotes", decision.refundNotes);
+    }
+    
+    if (refundScreenshot) {
+      formData.append("refundScreenshot", refundScreenshot);
+    }
+
     const response = await apiClient.post(
       API_ENDPOINTS.RETURNS.ADMIN_REVIEW,
-      requestData
+      formData,
+      {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      }
     );
     return response.data;
   }
