@@ -92,7 +92,11 @@ export default function OrderDetailsPage() {
   const shopSlug = searchParams.get("shopSlug");
 
   // Fetch shop data to get shopId
-  const { data: shopData } = useQuery({
+  const { 
+    data: shopData, 
+    isLoading: shopLoading, 
+    error: shopError 
+  } = useQuery({
     queryKey: ["shop", shopSlug],
     queryFn: () => shopService.getShopBySlug(shopSlug!),
     enabled: !!shopSlug,
@@ -100,43 +104,84 @@ export default function OrderDetailsPage() {
 
   const shopId = shopData?.shopId;
 
+  // Redirect if shopSlug is provided but shop fetch failed
+  useEffect(() => {
+    if (shopSlug && !shopLoading && (shopError || !shopData)) {
+      // Shop not found or error fetching shop, redirect to shops page
+      router.replace("/shops");
+    }
+  }, [shopSlug, shopLoading, shopError, shopData, router]);
+
   useEffect(() => {
     const fetchOrder = async () => {
       try {
         setLoading(true);
         // Pass shopId to fetch shop-specific order details
+        // If shopSlug exists but shopId is still loading, fetch without shopId first
+        // The backend will handle it appropriately
         const orderData = await orderService.getOrderById(
           orderId,
           undefined,
-          shopId
+          shopId || undefined
         );
         setOrder(orderData);
       } catch (error) {
         console.error("Error fetching order:", error);
         toast.error("Failed to load order details. Please try again.");
+        // If error is due to shop access or order not found, redirect back to orders list
+        if (error && typeof error === 'object' && 'response' in error) {
+          const httpError = error as any;
+          if (httpError.response?.status === 403 || httpError.response?.status === 404) {
+            if (shopSlug) {
+              router.push(`/dashboard/orders?shopSlug=${shopSlug}`);
+            } else {
+              router.push("/shops");
+            }
+          }
+        }
       } finally {
         setLoading(false);
       }
     };
 
-    if (orderId && (!shopSlug || shopId)) {
-      fetchOrder();
+    // Fetch order if:
+    // 1. orderId exists AND
+    // 2. (no shopSlug required OR shopSlug exists and shop query has completed - either success or error)
+    if (orderId) {
+      if (!shopSlug) {
+        // No shopSlug, fetch immediately
+        fetchOrder();
+      } else if (!shopLoading) {
+        // shopSlug exists and shop query has completed
+        // Only fetch if shop was found successfully (shopId exists)
+        // If shopError exists, the redirect useEffect will handle it
+        if (shopId) {
+          fetchOrder();
+        }
+      }
+      // If shopLoading is true, wait for it to complete
     }
-  }, [orderId, shopId, shopSlug]);
+  }, [orderId, shopId, shopSlug, shopLoading, router]);
 
   // Fetch returns associated with this order by order number
   useEffect(() => {
     const fetchReturns = async () => {
       if (!order?.orderNumber) return;
+      // Don't fetch if shopSlug exists but shopId is still loading
+      if (shopSlug && shopLoading) return;
       try {
         setLoadingReturns(true);
         // Use admin returns list with search filter, then filter exactly by orderNumber
+        // Pass shopId if available (required for VENDORs)
         const resp = await returnService.getAllReturnRequests({
           page: 0,
           size: 50,
           sort: "submittedAt",
           direction: "DESC",
-          filters: { search: order.orderNumber },
+          filters: { 
+            search: order.orderNumber,
+            shopId: shopId || undefined,
+          },
         });
         const matches = (resp.content || []).filter(
           (r) => r.orderNumber === order.orderNumber
@@ -151,7 +196,7 @@ export default function OrderDetailsPage() {
     };
 
     fetchReturns();
-  }, [order?.orderNumber]);
+  }, [order?.orderNumber, shopId, shopSlug, shopLoading]);
 
   const displayData = useMemo(() => {
     if (!order) return null;
