@@ -31,6 +31,7 @@ export const API_ENDPOINTS = {
     UPDATE_STATUS: (id: string) => `/admin/orders/${id}/status`,
     UPDATE_TRACKING: (id: string) => `/admin/orders/${id}/tracking`,
     COUNT_PENDING: `/admin/orders/count/pending`,
+    VERIFY_PICKUP: `/admin/orders/verify-pickup`,
   },
   INVITATIONS: {
     BASE: `/admin-invitations`,

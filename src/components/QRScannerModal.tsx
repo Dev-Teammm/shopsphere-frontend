@@ -111,13 +111,20 @@ const QRScannerModal = ({
         return;
       }
 
-      // Clear any existing content in the container
-      container.innerHTML = "";
-
       // Stop any existing scanner first
       if (scannerRef.current) {
-        await stopScanner();
+        try {
+          await stopScanner();
+        } catch (e) {
+          console.warn("Error stopping existing scanner:", e);
+        }
       }
+
+      // Wait a bit for cleanup
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      // Clear any existing content in the container after stopping
+      container.innerHTML = "";
 
       console.log("Initializing QR scanner...");
 
@@ -297,14 +304,21 @@ const QRScannerModal = ({
 
           {/* QR Scanner Container */}
           <div
-            className="relative rounded-md overflow-hidden bg-black"
-            style={{ minHeight: "300px" }}
+            className="relative rounded-md overflow-hidden"
+            style={{ 
+              minHeight: "300px", 
+              position: "relative",
+              backgroundColor: "#000"
+            }}
           >
             {/* The scanner will be rendered in this element */}
             <div
               id={scannerContainerId}
-              className="w-full h-[300px]"
-              style={{ lineHeight: 0 }}
+              style={{ 
+                width: "100%",
+                minHeight: "300px",
+                lineHeight: 0
+              }}
             ></div>
 
             {/* Loading State */}
@@ -397,7 +411,7 @@ const QRScannerModal = ({
             <Button
               onClick={retryScanning}
               disabled={
-                !libraryLoaded || (scanning && !error && hasPermission === true)
+                !libraryLoaded || (scanning && !error && hasPermission === true) || isValidating
               }
               className="flex-1 bg-primary hover:bg-primary/90"
             >
@@ -410,6 +424,7 @@ const QRScannerModal = ({
             <Button
               variant="outline"
               onClick={handleClose}
+              disabled={isValidating}
               className="border-primary/20 hover:bg-primary/5 hover:text-primary"
             >
               Cancel

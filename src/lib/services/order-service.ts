@@ -203,6 +203,34 @@ class OrderService {
   }
 
   /**
+   * Verify pickup order by QR token (admin/vendor only)
+   */
+  async verifyPickupOrder(
+    pickupToken: string,
+    shopId?: string
+  ): Promise<any> {
+    try {
+      const params = shopId ? { shopId } : {};
+      const response = await apiClient.post<ApiResponse<any>>(
+        API_ENDPOINTS.ADMIN_ORDERS.VERIFY_PICKUP,
+        { pickupToken },
+        { params }
+      );
+      return response.data;
+    } catch (error: any) {
+      console.error("Error verifying pickup order:", error);
+      // Extract error message from response
+      if (error.response?.data) {
+        const errorData = error.response.data;
+        throw new Error(
+          errorData.details || errorData.message || "Failed to verify pickup order"
+        );
+      }
+      throw error;
+    }
+  }
+
+  /**
    * Get pending orders count
    */
   async getPendingOrdersCount(): Promise<number> {

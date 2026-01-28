@@ -18,6 +18,10 @@ import {
   RotateCcw,
   Eye,
   Gift,
+  QrCode,
+  Camera,
+  AlertCircle,
+  Upload,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -59,6 +63,8 @@ import { format } from "date-fns";
 import { TruncatedText } from "@/components/ui/truncated-text";
 import { useQuery } from "@tanstack/react-query";
 import { shopService } from "@/lib/services/shop-service";
+import QRScannerModal from "@/components/QRScannerModal";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 export default function OrderDetailsPage() {
   const params = useParams();
@@ -87,6 +93,15 @@ export default function OrderDetailsPage() {
   // Returns associated with this order
   const [orderReturns, setOrderReturns] = useState<ReturnRequestDTO[]>([]);
   const [loadingReturns, setLoadingReturns] = useState(false);
+
+  // QR Scanner state for pickup orders
+  const [showQRScanner, setShowQRScanner] = useState(false);
+  const [isVerifyingPickup, setIsVerifyingPickup] = useState(false);
+  const [pickupVerificationError, setPickupVerificationError] = useState<string | null>(null);
+  const [pickupVerificationResult, setPickupVerificationResult] = useState<{
+    success: boolean;
+    message: string;
+  } | null>(null);
 
   const orderId = params.id as string;
   const shopSlug = searchParams.get("shopSlug");
@@ -211,7 +226,7 @@ export default function OrderDetailsPage() {
               so.shopName.toLowerCase().replace(/\s+/g, "-") ===
               shopSlug.toLowerCase()
           ) || order.shopOrders[0]
-        : null;
+        : order.shopOrders?.[0] || null;
 
     return {
       items: order.items || [],
@@ -224,8 +239,14 @@ export default function OrderDetailsPage() {
       pointsUsed: shopOrder?.pointsUsed,
       pointsValue: shopOrder?.pointsValue,
       paymentMethod: shopOrder?.paymentMethod,
+      fulfillmentType: shopOrder?.fulfillmentType,
+      // pickupToken is not included in admin responses for security
     };
   }, [order, shopSlug]);
+
+  // Check if order is pickup
+  const isPickupOrder = displayData?.fulfillmentType === "PICKUP";
+  const isDeliveryOrder = displayData?.fulfillmentType === "DELIVERY";
 
   // Filter delivery agents based on search term
   useEffect(() => {
@@ -305,6 +326,92 @@ export default function OrderDetailsPage() {
       toast.error("Failed to assign delivery agent. Please try again.");
     } finally {
       setAssigning(false);
+    }
+  };
+
+  const handleQRScanSuccess = async (scannedCode: string) => {
+    if (!order || !displayData) return;
+
+    try {
+      setIsVerifyingPickup(true);
+      setPickupVerificationError(null);
+      setPickupVerificationResult(null);
+
+      const result = await orderService.verifyPickupOrder(
+        scannedCode,
+        shopId || undefined
+      );
+
+      if (result.success) {
+        setPickupVerificationResult({
+          success: true,
+          message: "Pickup order verified successfully! Order marked as delivered.",
+        });
+        toast.success("Pickup order verified successfully! Order marked as delivered.");
+        // Refresh order data
+        const updatedOrder = await orderService.getOrderById(order.id, undefined, shopId);
+        setOrder(updatedOrder);
+        setShowQRScanner(false);
+      } else {
+        const errorMsg = result.message || "Verification failed";
+        setPickupVerificationError(errorMsg);
+        setPickupVerificationResult({
+          success: false,
+          message: errorMsg,
+        });
+      }
+    } catch (error: any) {
+      const errorMessage = error.message || "An error occurred during verification";
+      setPickupVerificationError(errorMessage);
+      setPickupVerificationResult({
+        success: false,
+        message: errorMessage,
+      });
+      toast.error(errorMessage);
+    } finally {
+      setIsVerifyingPickup(false);
+    }
+  };
+
+  const handleFileUpload = async (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setIsVerifyingPickup(true);
+      setPickupVerificationError(null);
+      setPickupVerificationResult(null);
+
+      const QrScanner = (await import("qr-scanner")).default;
+      const result = await QrScanner.scanImage(file);
+
+      if (result) {
+        await handleQRScanSuccess(result);
+      } else {
+        setPickupVerificationResult({
+          success: false,
+          message: "No QR code found in the uploaded image",
+        });
+        setPickupVerificationError("No QR code found in the uploaded image");
+      }
+    } catch (error: any) {
+      const errorMsg = error.message || "Failed to scan QR code from image";
+      setPickupVerificationResult({
+        success: false,
+        message: errorMsg,
+      });
+      setPickupVerificationError(errorMsg);
+    } finally {
+      setIsVerifyingPickup(false);
+      // Reset file input
+      const fileInput = document.getElementById(
+        "qr-image-upload-pickup"
+      ) as HTMLInputElement;
+      if (fileInput) {
+        fileInput.value = "";
+      }
     }
   };
 
@@ -515,6 +622,48 @@ export default function OrderDetailsPage() {
                     {format(new Date(order.updatedAt), "PPP 'at' p")}
                   </p>
                 </div>
+                {(() => {
+                  const shopOrder = shopSlug && order.shopOrders && order.shopOrders.length > 0
+                    ? order.shopOrders.find(
+                        (so) =>
+                          so.shopName.toLowerCase().replace(/\s+/g, "-") ===
+                          shopSlug.toLowerCase()
+                      ) || order.shopOrders[0]
+                    : order.shopOrders?.[0];
+                  
+                  if (shopOrder?.fulfillmentType) {
+                    return (
+                      <div>
+                        <label className="text-sm font-medium text-muted-foreground">
+                          Fulfillment Method
+                        </label>
+                        <div className="mt-1">
+                          <Badge
+                            variant="outline"
+                            className={
+                              shopOrder.fulfillmentType === "PICKUP"
+                                ? "bg-purple-100 text-purple-700 border-purple-200"
+                                : "bg-indigo-100 text-indigo-700 border-indigo-200"
+                            }
+                          >
+                            {shopOrder.fulfillmentType === "PICKUP" ? (
+                              <>
+                                <Package className="h-3 w-3 mr-1 inline" />
+                                Pickup at Shop
+                              </>
+                            ) : (
+                              <>
+                                <Truck className="h-3 w-3 mr-1 inline" />
+                                Delivery
+                              </>
+                            )}
+                          </Badge>
+                        </div>
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
               </div>
             </CardContent>
           </Card>
@@ -1292,6 +1441,126 @@ export default function OrderDetailsPage() {
               </CardContent>
             </Card>
           )}
+
+          {/* Pickup Order QR Scanner */}
+          {isPickupOrder && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <QrCode className="h-5 w-5" />
+                  Pickup Verification
+                </CardTitle>
+                <CardDescription>
+                  Scan the QR code to verify and mark this pickup order as delivered
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* Verification Result */}
+                {pickupVerificationResult && (
+                  <div
+                    className={`p-4 rounded-md ${
+                      pickupVerificationResult.success
+                        ? "bg-green-50 border border-green-200"
+                        : "bg-red-50 border border-red-200"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      {pickupVerificationResult.success ? (
+                        <Check className="h-5 w-5 text-green-600" />
+                      ) : (
+                        <X className="h-5 w-5 text-red-600" />
+                      )}
+                      <p
+                        className={`text-sm font-medium ${
+                          pickupVerificationResult.success
+                            ? "text-green-800"
+                            : "text-red-800"
+                        }`}
+                      >
+                        {pickupVerificationResult.message}
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {pickupVerificationError && !pickupVerificationResult && (
+                  <Alert variant="destructive">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription>{pickupVerificationError}</AlertDescription>
+                  </Alert>
+                )}
+
+                {order.status !== OrderStatus.DELIVERED && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {/* Camera Scan */}
+                    <Button
+                      onClick={() => setShowQRScanner(true)}
+                      disabled={isVerifyingPickup}
+                      size="lg"
+                      className="flex items-center gap-2 h-12"
+                    >
+                      <Camera className="h-5 w-5" />
+                      {isVerifyingPickup ? "Verifying..." : "Scan with Camera"}
+                    </Button>
+
+                    {/* Image Upload */}
+                    <div className="relative">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleFileUpload}
+                        disabled={isVerifyingPickup}
+                        className="sr-only"
+                        id="qr-image-upload-pickup"
+                      />
+                      <Button
+                        variant="outline"
+                        size="lg"
+                        disabled={isVerifyingPickup}
+                        onClick={() => {
+                          const fileInput = document.getElementById(
+                            "qr-image-upload-pickup"
+                          ) as HTMLInputElement;
+                          if (fileInput) {
+                            fileInput.click();
+                          }
+                        }}
+                        className="w-full flex items-center gap-2 h-12"
+                      >
+                        <Upload className="h-5 w-5" />
+                        {isVerifyingPickup ? "Processing..." : "Upload QR Image"}
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {order.status === OrderStatus.DELIVERED && (
+                  <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+                    <div className="flex items-center gap-2 text-green-700">
+                      <Check className="h-5 w-5" />
+                      <span className="font-semibold">Order Already Delivered</span>
+                    </div>
+                    <p className="text-sm text-green-600 mt-2">
+                      This pickup order has been verified and marked as delivered.
+                    </p>
+                  </div>
+                )}
+
+                {/* Instructions */}
+                {order.status !== OrderStatus.DELIVERED && (
+                  <div className="bg-blue-50 p-4 rounded-md">
+                    <p className="font-medium mb-2 text-blue-900">Quick Instructions:</p>
+                    <ul className="text-sm text-blue-800 space-y-1">
+                      <li>• Ask customer to show their pickup QR code</li>
+                      <li>• Use camera for real-time scanning (recommended)</li>
+                      <li>• Or take a photo and upload it</li>
+                      <li>• Order will be marked as delivered once verified</li>
+                    </ul>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
         </div>
       </div>
 
@@ -1367,6 +1636,20 @@ export default function OrderDetailsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* QR Scanner Modal for Pickup Orders */}
+      {isPickupOrder && (
+        <QRScannerModal
+          isOpen={showQRScanner}
+          onClose={() => {
+            setShowQRScanner(false);
+            setPickupVerificationError(null);
+          }}
+          orderCode={displayData?.shopOrderCode || order?.orderNumber || ""}
+          onSuccess={handleQRScanSuccess}
+          isValidating={isVerifyingPickup}
+        />
+      )}
     </div>
   );
 }
