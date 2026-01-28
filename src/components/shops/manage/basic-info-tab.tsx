@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,9 +15,28 @@ import {
 } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Loader2, Upload, X, Link as LinkIcon, Save, Plus } from "lucide-react";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import { Loader2, Upload, X, Link as LinkIcon, Save, Plus, Check, ChevronsUpDown } from "lucide-react";
 import { shopService, ShopDTO } from "@/lib/services/shop-service";
+import { shopCategoryService, ShopCategory } from "@/lib/services/shop-category-service";
+import { ShopCapability } from "@/lib/services/subscription-service";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { cn } from "@/lib/utils";
 import Image from "next/image";
+import { CapabilityChangeDialog } from "./capability-change-dialog";
+import { CapabilityErrorDialog } from "./capability-error-dialog";
 
 interface BasicInfoTabProps {
   shop: ShopDTO | null;
@@ -37,12 +56,50 @@ export function BasicInfoTab({
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Helper function to extract error message from API error
+  const extractErrorMessage = (error: any): { title: string; message: string } => {
+    let errorMessage = "An error occurred. Please try again.";
+    let errorTitle = "Error";
+    
+    if (error?.response?.data) {
+      if (typeof error.response.data === "string") {
+        errorMessage = error.response.data;
+      } else if (error.response.data.message) {
+        errorMessage = error.response.data.message;
+      } else if (error.response.data.error) {
+        errorMessage = error.response.data.error;
+      }
+    } else if (error?.message) {
+      errorMessage = error.message;
+    }
+    
+    // Determine appropriate title based on error content
+    const lowerMessage = errorMessage.toLowerCase();
+    if (lowerMessage.includes("subscription") || 
+        lowerMessage.includes("capability") ||
+        lowerMessage.includes("plan")) {
+      errorTitle = "Subscription Plan Mismatch";
+    } else if (lowerMessage.includes("unauthorized") || lowerMessage.includes("forbidden")) {
+      errorTitle = "Access Denied";
+    } else if (lowerMessage.includes("not found")) {
+      errorTitle = "Not Found";
+    }
+    
+    return { title: errorTitle, message: errorMessage };
+  };
+
   const [name, setName] = useState(shop?.name || "");
   const [description, setDescription] = useState(shop?.description || "");
   const [contactEmail, setContactEmail] = useState(shop?.contactEmail || "");
   const [contactPhone, setContactPhone] = useState(shop?.contactPhone || "");
   const [address, setAddress] = useState(shop?.address || "");
   const [isActive, setIsActive] = useState(shop?.isActive ?? true);
+  const [categoryName, setCategoryName] = useState(shop?.shopCategoryName || shop?.category || "");
+  const [categoryOpen, setCategoryOpen] = useState(false);
+  const [categorySearchQuery, setCategorySearchQuery] = useState("");
+  const [primaryCapability, setPrimaryCapability] = useState<ShopCapability | undefined>(
+    shop?.primaryCapability
+  );
 
   const [logoInputMethod, setLogoInputMethod] = useState<LogoInputMethod>(null);
   const [logoUrl, setLogoUrl] = useState(shop?.logoUrl || "");
@@ -52,6 +109,19 @@ export function BasicInfoTab({
   );
   const [logoUrlValidating, setLogoUrlValidating] = useState(false);
   const [logoUrlError, setLogoUrlError] = useState<string | null>(null);
+  const [showCapabilityDialog, setShowCapabilityDialog] = useState(false);
+  const [pendingCapabilityChange, setPendingCapabilityChange] = useState<ShopCapability | null>(null);
+  const [pendingOperations, setPendingOperations] = useState<{
+    pendingOrders: number;
+    pendingReturns: number;
+    pendingAppeals: number;
+    pendingDeliveries: number;
+    total: number;
+  } | null>(null);
+  const [isLoadingPendingOps, setIsLoadingPendingOps] = useState(false);
+  const [showErrorDialog, setShowErrorDialog] = useState(false);
+  const [errorDialogTitle, setErrorDialogTitle] = useState("Error");
+  const [errorDialogMessage, setErrorDialogMessage] = useState("");
 
   // Initialize form with existing shop data
   useEffect(() => {
@@ -64,8 +134,51 @@ export function BasicInfoTab({
       setIsActive(shop.isActive ?? true);
       setLogoUrl(shop.logoUrl || "");
       setLogoPreview(shop.logoUrl || null);
+      setCategoryName(shop.shopCategoryName || shop.category || "");
+      setPrimaryCapability(shop.primaryCapability);
     }
   }, [shop]);
+
+  // Debounced search for categories
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("");
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchQuery(categorySearchQuery);
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [categorySearchQuery]);
+
+  // Search categories
+  const {
+    data: categories,
+    isLoading: categoriesLoading,
+  } = useQuery({
+    queryKey: ["shop-categories-search", debouncedSearchQuery],
+    queryFn: () => shopCategoryService.searchCategories(debouncedSearchQuery),
+    enabled: categoryOpen || debouncedSearchQuery.length > 0,
+  });
+
+  // Create category mutation
+  const createCategoryMutation = useMutation({
+    mutationFn: (name: string) => shopCategoryService.createCategory(name),
+    onSuccess: (newCategory) => {
+      setCategoryName(newCategory.name);
+      setCategoryOpen(false);
+      toast({
+        title: "Category Created",
+        description: `Category "${newCategory.name}" has been created and selected.`,
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to create category.",
+        variant: "destructive",
+      });
+    },
+  });
 
   const createShopMutation = useMutation({
     mutationFn: async (data: {
@@ -118,14 +231,30 @@ export function BasicInfoTab({
         variant: "default",
       });
       onShopUpdated(updatedShop);
+      // Reset capability dialog state on success
+      setShowCapabilityDialog(false);
+      setPendingCapabilityChange(null);
+      setPendingOperations(null);
     },
     onError: (error: any) => {
-      toast({
-        title: "Error updating shop",
-        description:
-          error.message || "Failed to update shop. Please try again.",
-        variant: "destructive",
-      });
+      const { title, message } = extractErrorMessage(error);
+      
+      // Show error in dialog instead of toast
+      setErrorDialogTitle(title);
+      setErrorDialogMessage(message);
+      setShowErrorDialog(true);
+      
+      // If it's a subscription/capability error, reset the capability change
+      const lowerMessage = message.toLowerCase();
+      if (lowerMessage.includes("subscription") || 
+          lowerMessage.includes("capability") ||
+          lowerMessage.includes("plan")) {
+        // Revert to original capability
+        setPrimaryCapability(shop?.primaryCapability);
+        setShowCapabilityDialog(false);
+        setPendingCapabilityChange(null);
+        setPendingOperations(null);
+      }
     },
   });
 
@@ -136,6 +265,8 @@ export function BasicInfoTab({
     setContactPhone("");
     setAddress("");
     setIsActive(true);
+    setCategoryName("");
+    setPrimaryCapability(undefined);
     setLogoInputMethod(null);
     setLogoUrl("");
     setLogoFile(null);
@@ -290,6 +421,15 @@ export function BasicInfoTab({
       return;
     }
 
+    if (isNewShop && !primaryCapability) {
+      toast({
+        title: "Validation Error",
+        description: "Please select a shop capability to continue",
+        variant: "destructive",
+      });
+      return;
+    }
+
     const shopData: Partial<ShopDTO> = {
       name: name.trim(),
       description: description.trim() || undefined,
@@ -298,6 +438,8 @@ export function BasicInfoTab({
       address: address.trim(),
       isActive: isActive,
       logoUrl: logoInputMethod === "url" && logoUrl ? logoUrl : undefined,
+      shopCategoryName: categoryName.trim() || undefined,
+      primaryCapability: primaryCapability,
     };
 
     if (isNewShop) {
@@ -317,6 +459,7 @@ export function BasicInfoTab({
     createShopMutation.isPending || updateShopMutation.isPending;
 
   return (
+    <>
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
@@ -373,6 +516,218 @@ export function BasicInfoTab({
                 {isActive ? "Active" : "Inactive"}
               </Label>
             </div>
+          </div>
+
+          <div className="grid gap-2">
+            <Label htmlFor="category">Shop Category (optional)</Label>
+            <Popover open={categoryOpen} onOpenChange={setCategoryOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  role="combobox"
+                  aria-expanded={categoryOpen}
+                  className="w-full justify-between"
+                  disabled={isLoading}
+                >
+                  {categoryName || "Select category..."}
+                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
+                <Command>
+                  <CommandInput
+                    placeholder="Search categories..."
+                    value={categorySearchQuery}
+                    onValueChange={setCategorySearchQuery}
+                  />
+                  <CommandList>
+                    <CommandEmpty>
+                      {categoriesLoading ? (
+                        <div className="flex items-center justify-center py-4">
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        </div>
+                      ) : categorySearchQuery.trim() ? (
+                        <div className="py-4 text-center">
+                          <p className="text-sm text-muted-foreground mb-2">
+                            No category found matching "{categorySearchQuery}"
+                          </p>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              if (categorySearchQuery.trim()) {
+                                createCategoryMutation.mutate(categorySearchQuery.trim());
+                              }
+                            }}
+                            disabled={createCategoryMutation.isPending || !categorySearchQuery.trim()}
+                            className="gap-2"
+                          >
+                            {createCategoryMutation.isPending ? (
+                              <>
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                                Creating...
+                              </>
+                            ) : (
+                              <>
+                                <Plus className="h-4 w-4" />
+                                Create "{categorySearchQuery}"
+                              </>
+                            )}
+                          </Button>
+                        </div>
+                      ) : (
+                        <div className="py-6 text-center text-sm text-muted-foreground">
+                          Start typing to search categories...
+                        </div>
+                      )}
+                    </CommandEmpty>
+                    <CommandGroup>
+                      {categories?.map((category) => (
+                        <CommandItem
+                          key={category.id}
+                          value={category.name}
+                          onSelect={() => {
+                            setCategoryName(category.name);
+                            setCategoryOpen(false);
+                            setCategorySearchQuery("");
+                          }}
+                        >
+                          <Check
+                            className={cn(
+                              "mr-2 h-4 w-4",
+                              categoryName === category.name
+                                ? "opacity-100"
+                                : "opacity-0"
+                            )}
+                          />
+                          {category.name}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
+            {categoryName && (
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">
+                  Selected: <strong>{categoryName}</strong>
+                </span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setCategoryName("");
+                    setCategorySearchQuery("");
+                  }}
+                  disabled={isLoading}
+                  className="h-6 px-2"
+                >
+                  <X className="h-3 w-3" />
+                </Button>
+              </div>
+            )}
+          </div>
+
+          <div className="grid gap-2">
+            <Label htmlFor="capability">
+              Shop Capability {isNewShop && <span className="text-destructive">*</span>}
+            </Label>
+            <p className="text-sm text-muted-foreground mb-2">
+              {isNewShop 
+                ? "Select how your shop will operate. This determines which subscription plans are available."
+                : "Update your shop's operational capability. This determines which subscription plans are available."}
+            </p>
+            <RadioGroup
+              value={primaryCapability || ""}
+              onValueChange={async (value) => {
+                const newCapability = value as ShopCapability;
+                // If capability is actually changing and shop exists, check for pending operations
+                if (!isNewShop && shop && shop.primaryCapability && shop.primaryCapability !== newCapability) {
+                  setIsLoadingPendingOps(true);
+                  try {
+                    const ops = await shopService.getPendingOperationsForTransition(shop.shopId, newCapability);
+                    setPendingOperations(ops);
+                    setPendingCapabilityChange(newCapability);
+                    setShowCapabilityDialog(true);
+                  } catch (error: any) {
+                    const { title, message } = extractErrorMessage(error);
+                    
+                    // Show error in dialog instead of toast
+                    setErrorDialogTitle(title);
+                    setErrorDialogMessage(message);
+                    setShowErrorDialog(true);
+                    
+                    // Revert to original capability
+                    setPrimaryCapability(shop.primaryCapability);
+                  } finally {
+                    setIsLoadingPendingOps(false);
+                  }
+                } else {
+                  // For new shops or no change, update immediately
+                  setPrimaryCapability(newCapability);
+                }
+              }}
+              className="space-y-3"
+              disabled={isLoading || isLoadingPendingOps}
+            >
+              <div className="flex items-start space-x-3 rounded-lg border p-4 hover:bg-accent/50 transition-colors">
+                <RadioGroupItem value="VISUALIZATION_ONLY" id="VISUALIZATION_ONLY" className="mt-1" />
+                <div className="flex-1 space-y-1">
+                  <Label htmlFor="VISUALIZATION_ONLY" className="text-sm font-medium leading-none cursor-pointer">
+                    Visualization Only
+                  </Label>
+                  <p className="text-xs text-muted-foreground">
+                    Only display products. No orders, delivery, or returns.
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-start space-x-3 rounded-lg border p-4 hover:bg-accent/50 transition-colors">
+                <RadioGroupItem value="PICKUP_ORDERS" id="PICKUP_ORDERS" className="mt-1" />
+                <div className="flex-1 space-y-1">
+                  <Label htmlFor="PICKUP_ORDERS" className="text-sm font-medium leading-none cursor-pointer">
+                    Pickup Orders
+                  </Label>
+                  <p className="text-xs text-muted-foreground">
+                    Display products and accept pickup orders. Customers pick up at shop. Returns handled at shop (no delivery agent).
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-start space-x-3 rounded-lg border p-4 hover:bg-accent/50 transition-colors">
+                <RadioGroupItem value="FULL_ECOMMERCE" id="FULL_ECOMMERCE" className="mt-1" />
+                <div className="flex-1 space-y-1">
+                  <Label htmlFor="FULL_ECOMMERCE" className="text-sm font-medium leading-none cursor-pointer">
+                    Full E-commerce
+                  </Label>
+                  <p className="text-xs text-muted-foreground">
+                    Full e-commerce: products, orders, delivery with agents, and returns with agents.
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-start space-x-3 rounded-lg border p-4 hover:bg-accent/50 transition-colors">
+                <RadioGroupItem value="HYBRID" id="HYBRID" className="mt-1" />
+                <div className="flex-1 space-y-1">
+                  <Label htmlFor="HYBRID" className="text-sm font-medium leading-none cursor-pointer">
+                    Hybrid
+                  </Label>
+                  <p className="text-xs text-muted-foreground">
+                    Both pickup orders and full e-commerce capabilities (pickup + delivery).
+                  </p>
+                </div>
+              </div>
+            </RadioGroup>
+            {isNewShop && !primaryCapability && (
+              <p className="text-sm text-destructive">
+                Please select a shop capability to continue.
+              </p>
+            )}
+            {!isNewShop && primaryCapability && (
+              <div className="flex items-center gap-2 mt-2">
+                <span className="text-sm text-muted-foreground">
+                  Current capability: <strong className="text-foreground">{primaryCapability.replace(/_/g, " ")}</strong>
+                </span>
+              </div>
+            )}
           </div>
 
           <div className="grid gap-2">
@@ -556,5 +911,63 @@ export function BasicInfoTab({
         </div>
       </CardContent>
     </Card>
+
+      <CapabilityChangeDialog
+        open={showCapabilityDialog}
+        onOpenChange={(open) => {
+          setShowCapabilityDialog(open);
+          if (!open) {
+            // Reset state when dialog closes
+            setPendingCapabilityChange(null);
+            setPendingOperations(null);
+          }
+        }}
+        onConfirm={() => {
+          if (pendingCapabilityChange && shop) {
+            // Update the capability and proceed with form submission
+            setPrimaryCapability(pendingCapabilityChange);
+            setShowCapabilityDialog(false);
+            
+            // Automatically submit the form with the new capability
+            const shopData: Partial<ShopDTO> = {
+              name: name.trim(),
+              description: description.trim() || undefined,
+              contactEmail: contactEmail.trim(),
+              contactPhone: contactPhone.trim(),
+              address: address.trim(),
+              isActive: isActive,
+              logoUrl: logoInputMethod === "url" && logoUrl ? logoUrl : undefined,
+              shopCategoryName: categoryName.trim() || undefined,
+              primaryCapability: pendingCapabilityChange,
+            };
+            
+            updateShopMutation.mutate({
+              shopId: shop.shopId,
+              shopData,
+            });
+            
+            setPendingCapabilityChange(null);
+            setPendingOperations(null);
+          }
+        }}
+        currentCapability={shop?.primaryCapability}
+        newCapability={pendingCapabilityChange || "VISUALIZATION_ONLY"}
+        pendingOperations={pendingOperations || {
+          pendingOrders: 0,
+          pendingReturns: 0,
+          pendingAppeals: 0,
+          pendingDeliveries: 0,
+          total: 0,
+        }}
+        isLoading={isLoadingPendingOps || updateShopMutation.isPending}
+      />
+
+      <CapabilityErrorDialog
+        open={showErrorDialog}
+        onOpenChange={setShowErrorDialog}
+        title={errorDialogTitle}
+        message={errorDialogMessage}
+      />
+    </>
   );
 }

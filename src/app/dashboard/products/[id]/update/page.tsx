@@ -982,6 +982,13 @@ export default function ProductUpdate({ params }: ProductUpdateProps) {
     }
   }, [searchParams, activeTab]);
 
+  // Fetch variants on initial load if tab is "variants"
+  useEffect(() => {
+    if (productId && activeTab === "variants" && productVariants.length === 0 && !variantsLoading) {
+      fetchProductVariants();
+    }
+  }, [productId, activeTab]);
+
   useEffect(() => {
     const hasChanges =
       JSON.stringify(productDetails) !== JSON.stringify(initialProductDetails);
@@ -2032,7 +2039,7 @@ export default function ProductUpdate({ params }: ProductUpdateProps) {
       setHasProductDetailsChanges(false);
 
       toast({
-        title: "Product Details Updated",
+        title: "Additional info Updated",
         description: "Product details have been updated successfully",
       });
     } catch (error) {
@@ -2227,7 +2234,11 @@ export default function ProductUpdate({ params }: ProductUpdateProps) {
   };
 
   const handleAddVariant = () => {
-    router.push(`/dashboard/products/${productId}/variants/create`);
+    const shopSlug = searchParams.get("shopSlug");
+    const variantCreateUrl = shopSlug 
+      ? `/dashboard/products/${productId}/variants/create?shopSlug=${shopSlug}`
+      : `/dashboard/products/${productId}/variants/create`;
+    router.push(variantCreateUrl);
   };
 
   const toggleVariantExpansion = (variantId: number) => {
@@ -2388,7 +2399,7 @@ export default function ProductUpdate({ params }: ProductUpdateProps) {
                 Update Product
               </h1>
               <p className="text-muted-foreground">
-                Modify product details for:{" "}
+                Modify additional information for:{" "}
                 <strong>{product.productName}</strong>
               </p>
             </div>
@@ -2451,7 +2462,7 @@ export default function ProductUpdate({ params }: ProductUpdateProps) {
               </TabsTrigger>
               <TabsTrigger value="details" className="flex items-center gap-2">
                 <Settings className="h-4 w-4" />
-                Product Details
+                Additional Info
               </TabsTrigger>
             </TabsList>
           </div>
@@ -3272,8 +3283,24 @@ export default function ProductUpdate({ params }: ProductUpdateProps) {
                                       </Badge>
                                     )}
                                   </div>
-                                  <div className="text-sm text-muted-foreground">
-                                    {variant.variantName || "Unnamed Variant"}
+                                  <div className="flex flex-col gap-1">
+                                    <div className="text-sm text-muted-foreground">
+                                      {variant.variantName || "Unnamed Variant"}
+                                    </div>
+                                    {/* Display variant attributes */}
+                                    {variant.attributes && variant.attributes.length > 0 && (
+                                      <div className="flex flex-wrap gap-1.5">
+                                        {variant.attributes.map((attr, idx) => (
+                                          <Badge
+                                            key={attr.attributeValueId || idx}
+                                            variant="secondary"
+                                            className="text-xs font-normal"
+                                          >
+                                            {attr.attributeType}: {attr.attributeValue}
+                                          </Badge>
+                                        ))}
+                                      </div>
+                                    )}
                                   </div>
                                 </div>
                                 <div className="flex items-center gap-2">
@@ -4002,7 +4029,7 @@ export default function ProductUpdate({ params }: ProductUpdateProps) {
               <CardHeader className="bg-primary/5">
                 <CardTitle className="flex items-center gap-2">
                   <Settings className="h-5 w-5" />
-                  Product Details & SEO
+                  Additional Information & SEO
                 </CardTitle>
                 <CardDescription>
                   Configure detailed product information, SEO settings, and
@@ -4303,7 +4330,7 @@ export default function ProductUpdate({ params }: ProductUpdateProps) {
                     className="bg-primary hover:bg-primary/90"
                   >
                     <Save className="mr-2 h-4 w-4" />
-                    Save Product Details
+                    Save Additional Info
                   </Button>
                 </div>
               </CardContent>

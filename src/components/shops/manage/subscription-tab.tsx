@@ -55,11 +55,40 @@ export function SubscriptionTab({ shop }: SubscriptionTabProps) {
   const [subscribingPlanId, setSubscribingPlanId] = useState<number | null>(null);
   const [showCancelDialog, setShowCancelDialog] = useState(false);
 
-  // Fetch available plans with shop-specific info
-  const { data: plans, isLoading: plansLoading } = useQuery({
-    queryKey: ["subscription-plans", "active", shop.shopId],
+  // Fetch available plans filtered by shop's capability
+  // getActivePlansForShop already filters by shop's primaryCapability and includes freemiumConsumed status
+  const { 
+    data: matchingPlans, 
+    isLoading: plansLoading,
+    isFetching: plansFetching
+  } = useQuery({
+    queryKey: ["subscription-plans", "active", shop.shopId, shop.primaryCapability],
     queryFn: () => subscriptionService.getAllPlans(true, shop.shopId),
+    enabled: !!shop.shopId, // Only fetch if shop exists
   });
+
+  // Fetch all other active plans (for "Discover other plans" section)
+  const { 
+    data: allActivePlans,
+    isLoading: allPlansLoading 
+  } = useQuery({
+    queryKey: ["subscription-plans", "all-active"],
+    queryFn: () => subscriptionService.getAllPlans(true),
+    enabled: !!shop.shopId && !!shop.primaryCapability,
+  });
+
+  // Filter plans: matching vs non-matching
+  // Only set plans after data has been fetched (not undefined)
+  const plans = matchingPlans ?? [];
+  const otherPlans = (allActivePlans ?? []).filter(
+    (plan) => plan.capability !== shop.primaryCapability
+  );
+  
+  // Determine if we should show loading state
+  // Show loading if: query is loading OR data hasn't been fetched yet (undefined)
+  // Use isLoading for initial load, isFetching for refetches
+  const isPlansLoading = plansLoading || (plansFetching && matchingPlans === undefined);
+  const hasPlansData = matchingPlans !== undefined; // Data has been fetched at least once
 
   // Fetch current subscription
   const { data: activeSubscription, isLoading: activeLoading } = useQuery({
@@ -76,7 +105,10 @@ export function SubscriptionTab({ shop }: SubscriptionTabProps) {
   // Note: freemiumConsumed is now included in plans data from backend
 
   // Check if subscription system is enabled
-  const { data: isSystemEnabled } = useQuery({
+  const { 
+    data: isSystemEnabled, 
+    isLoading: systemStatusLoading 
+  } = useQuery({
     queryKey: ["subscription-system-status"],
     queryFn: subscriptionService.isSystemEnabled,
   });
@@ -141,8 +173,11 @@ export function SubscriptionTab({ shop }: SubscriptionTabProps) {
         errorMessage = error.message;
       }
       
-      // Check if it's a freemium consumption error
-      if (errorMessage.toLowerCase().includes("free trial") || 
+      // Check error type for appropriate title
+      if (errorMessage.toLowerCase().includes("capability") || 
+          errorMessage.toLowerCase().includes("compatible")) {
+        errorTitle = "Capability Mismatch";
+      } else if (errorMessage.toLowerCase().includes("free trial") || 
           errorMessage.toLowerCase().includes("freemium") ||
           errorMessage.toLowerCase().includes("already used")) {
         errorTitle = "Free Trial Unavailable";
@@ -152,7 +187,7 @@ export function SubscriptionTab({ shop }: SubscriptionTabProps) {
         title: errorTitle,
         description: errorMessage,
         variant: "destructive",
-        duration: 5000, // Show for 5 seconds for important messages
+        duration: 6000, // Show for 6 seconds for important messages
       });
       setSubscribingPlanId(null);
     },
@@ -167,10 +202,31 @@ export function SubscriptionTab({ shop }: SubscriptionTabProps) {
       window.location.href = checkoutUrl;
     },
     onError: (error: any) => {
+      let errorMessage = error?.response?.data || error?.message || "Failed to create checkout session. Please try again.";
+      let errorTitle = "Checkout Failed";
+      
+      // Extract error message properly
+      if (error?.response?.data) {
+        if (typeof error.response.data === "string") {
+          errorMessage = error.response.data;
+        } else if (error.response.data.message) {
+          errorMessage = error.response.data.message;
+        } else if (error.response.data.error) {
+          errorMessage = error.response.data.error;
+        }
+      }
+      
+      // Check if it's a capability mismatch error
+      if (errorMessage.toLowerCase().includes("capability") || 
+          errorMessage.toLowerCase().includes("compatible")) {
+        errorTitle = "Capability Mismatch";
+      }
+      
       toast({
-        title: "Checkout Failed",
-        description: error?.response?.data || error?.message || "Failed to create checkout session. Please try again.",
+        title: errorTitle,
+        description: errorMessage,
         variant: "destructive",
+        duration: 6000,
       });
       setSubscribingPlanId(null);
     },
@@ -218,6 +274,26 @@ export function SubscriptionTab({ shop }: SubscriptionTabProps) {
   });
 
   const handleSubscribe = (plan: SubscriptionPlan) => {
+    // Validate capability match before subscribing
+    if (shop.primaryCapability && plan.capability !== shop.primaryCapability) {
+      toast({
+        title: "Capability Mismatch",
+        description: `This plan is for ${plan.capability.replace(/_/g, " ")} shops, but your shop is set to ${shop.primaryCapability.replace(/_/g, " ")}. Please update your shop capability first or select a matching plan.`,
+        variant: "destructive",
+        duration: 6000,
+      });
+      return;
+    }
+
+    if (!shop.primaryCapability) {
+      toast({
+        title: "Shop Capability Required",
+        description: "Please set your shop capability first before subscribing to a plan.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setSubscribingPlanId(plan.id);
     
     if (plan.isFreemium) {
@@ -235,6 +311,156 @@ export function SubscriptionTab({ shop }: SubscriptionTabProps) {
 
   const handleToggleAutoRenew = (checked: boolean) => {
     toggleAutoRenewMutation.mutate(checked);
+  };
+
+  // Show loading state while checking system status (after all hooks are declared)
+  if (systemStatusLoading) {
+    return (
+      <Card>
+        <CardContent className="pt-6">
+          <div className="flex flex-col items-center justify-center py-12">
+            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground mb-4" />
+            <p className="text-sm text-muted-foreground">Checking subscription system status...</p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Render plan card component
+  const renderPlanCard = (plan: SubscriptionPlan, isMatching: boolean) => {
+    const isFreemium = plan.isFreemium;
+    const freemiumConsumed = plan.freemiumConsumed || false;
+    const isCurrentPlan = activeSubscription?.planId === plan.id;
+    const hasActiveSubscription = activeSubscription?.status === "ACTIVE";
+    const canSubscribe = !isCurrentPlan && !hasActiveSubscription && !freemiumConsumed && isMatching;
+    const capabilityMismatch = !isMatching && plan.capability !== shop.primaryCapability;
+
+    return (
+      <Card key={plan.id} className="flex flex-col">
+        <CardHeader>
+          <div className="flex justify-between items-start">
+            <div>
+              <CardTitle className="text-xl">{plan.name}</CardTitle>
+              <CardDescription className="mt-1">
+                {isFreemium ? (
+                  "Free Trial"
+                ) : (
+                  `${plan.currency} ${plan.price.toFixed(2)} / ${plan.durationInDays} days`
+                )}
+              </CardDescription>
+            </div>
+            <div className="flex flex-col gap-1 items-end">
+              {isFreemium && (
+                <Badge variant="secondary" className="gap-1">
+                  <Gift className="h-3 w-3" />
+                  Freemium
+                </Badge>
+              )}
+              {plan.capability && (
+                <Badge variant="outline" className="text-xs">
+                  {plan.capability.replace(/_/g, " ")}
+                </Badge>
+              )}
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="flex-1 space-y-4">
+          <p className="text-sm text-muted-foreground min-h-[40px]">
+            {plan.description || "No description provided."}
+          </p>
+
+          <div className="space-y-2 text-sm">
+            <div className="flex items-center gap-2">
+              <Package className="h-4 w-4 opacity-70" />
+              <span>
+                Products: {plan.maxProducts === -1 ? "Unlimited" : plan.maxProducts}
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Warehouse className="h-4 w-4 opacity-70" />
+              <span>
+                Warehouses: {plan.maxWarehouses === -1 ? "Unlimited" : plan.maxWarehouses}
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Users className="h-4 w-4 opacity-70" />
+              <span>
+                Employees: {plan.maxEmployees === -1 ? "Unlimited" : plan.maxEmployees}
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Truck className="h-4 w-4 opacity-70" />
+              <span>
+                Delivery Agents:{" "}
+                {plan.maxDeliveryAgents === -1 ? "Unlimited" : plan.maxDeliveryAgents}
+              </span>
+            </div>
+          </div>
+
+          {capabilityMismatch && (
+            <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 text-sm text-orange-800">
+              <p className="font-medium">Capability Mismatch</p>
+              <p className="text-xs mt-1">
+                This plan is for {plan.capability.replace(/_/g, " ")} shops. Update your shop capability to subscribe.
+              </p>
+            </div>
+          )}
+
+          {freemiumConsumed && isFreemium && (
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-sm text-yellow-800">
+              <p className="font-medium">Free trial already used</p>
+              <p className="text-xs mt-1">You can only use one free trial per shop.</p>
+            </div>
+          )}
+
+          {hasActiveSubscription && !isCurrentPlan && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-800">
+              <p className="font-medium">Active subscription required</p>
+              <p className="text-xs mt-1">Cancel your current subscription to switch plans.</p>
+            </div>
+          )}
+
+          <Button
+            className="w-full mt-4"
+            onClick={() => handleSubscribe(plan)}
+            disabled={
+              subscribingPlanId === plan.id ||
+              freemiumMutation.isPending ||
+              checkoutMutation.isPending ||
+              !canSubscribe ||
+              capabilityMismatch
+            }
+            variant={isFreemium ? "default" : "default"}
+          >
+            {subscribingPlanId === plan.id ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                {isFreemium ? "Activating..." : "Processing..."}
+              </>
+            ) : isCurrentPlan ? (
+              "Current Plan"
+            ) : capabilityMismatch ? (
+              "Update Shop Capability"
+            ) : freemiumConsumed && isFreemium ? (
+              "Already Used"
+            ) : hasActiveSubscription && !isCurrentPlan ? (
+              "Cancel Current Plan First"
+            ) : isFreemium ? (
+              <>
+                <Gift className="mr-2 h-4 w-4" />
+                Use for Free
+              </>
+            ) : (
+              <>
+                <CreditCard className="mr-2 h-4 w-4" />
+                Subscribe
+              </>
+            )}
+          </Button>
+        </CardContent>
+      </Card>
+    );
   };
 
   if (!isSystemEnabled) {
@@ -270,7 +496,7 @@ export function SubscriptionTab({ shop }: SubscriptionTabProps) {
                 <div>
                   <h3 className="text-lg font-semibold">{activeSubscription.planName}</h3>
                   <p className="text-sm text-muted-foreground">
-                    {activeSubscription.planId && plans?.find((p) => p.id === activeSubscription.planId)?.description}
+                    {activeSubscription.planId && (matchingPlans || [])?.find((p) => p.id === activeSubscription.planId)?.description}
                   </p>
                 </div>
                 <Badge
@@ -366,143 +592,80 @@ export function SubscriptionTab({ shop }: SubscriptionTabProps) {
         </CardContent>
       </Card>
 
-      {/* Available Plans */}
+      {/* Available Plans for Shop Capability */}
       <Card>
         <CardHeader>
           <CardTitle>Available Plans</CardTitle>
-          <CardDescription>Choose a subscription plan for your shop</CardDescription>
+          <CardDescription>
+            {shop.primaryCapability 
+              ? `Plans compatible with your shop capability: ${shop.primaryCapability.replace(/_/g, " ")}`
+              : "Choose a subscription plan for your shop"}
+          </CardDescription>
         </CardHeader>
         <CardContent>
-          {plansLoading ? (
+          {isPlansLoading ? (
             <div className="space-y-4">
-              <Skeleton className="h-48 w-full" />
-              <Skeleton className="h-48 w-full" />
+              <div className="flex flex-col items-center justify-center py-12">
+                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground mb-4" />
+                <p className="text-sm text-muted-foreground">Loading subscription plans...</p>
+              </div>
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                <Skeleton className="h-64 w-full" />
+                <Skeleton className="h-64 w-full" />
+                <Skeleton className="h-64 w-full" />
+              </div>
+            </div>
+          ) : hasPlansData && plans.length === 0 ? (
+            <div className="text-center py-12">
+              <CreditCard className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+              <p className="text-muted-foreground font-medium mb-2">No Plans Available</p>
+              <p className="text-sm text-muted-foreground">
+                {shop.primaryCapability 
+                  ? `No subscription plans are currently available for ${shop.primaryCapability.replace(/_/g, " ")} shops. Please contact support or update your shop capability.`
+                  : "No subscription plans are available. Please set your shop capability first."}
+              </p>
             </div>
           ) : (
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {plans?.map((plan) => {
-                const isFreemium = plan.isFreemium;
-                const freemiumConsumed = plan.freemiumConsumed || false;
-                const isCurrentPlan = activeSubscription?.planId === plan.id;
-                const hasActiveSubscription = activeSubscription?.status === "ACTIVE";
-                const canSubscribe = !isCurrentPlan && !hasActiveSubscription && !freemiumConsumed;
-
-                return (
-                  <Card key={plan.id} className="flex flex-col">
-                    <CardHeader>
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <CardTitle className="text-xl">{plan.name}</CardTitle>
-                          <CardDescription className="mt-1">
-                            {isFreemium ? (
-                              "Free Trial"
-                            ) : (
-                              `${plan.currency} ${plan.price.toFixed(2)} / ${plan.durationInDays} days`
-                            )}
-                          </CardDescription>
-                        </div>
-                        {isFreemium && (
-                          <Badge variant="secondary" className="gap-1">
-                            <Gift className="h-3 w-3" />
-                            Freemium
-                          </Badge>
-                        )}
-                      </div>
-                    </CardHeader>
-                    <CardContent className="flex-1 space-y-4">
-                      <p className="text-sm text-muted-foreground min-h-[40px]">
-                        {plan.description || "No description provided."}
-                      </p>
-
-                      <div className="space-y-2 text-sm">
-                        <div className="flex items-center gap-2">
-                          <Package className="h-4 w-4 opacity-70" />
-                          <span>
-                            Products: {plan.maxProducts === -1 ? "Unlimited" : plan.maxProducts}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Warehouse className="h-4 w-4 opacity-70" />
-                          <span>
-                            Warehouses: {plan.maxWarehouses === -1 ? "Unlimited" : plan.maxWarehouses}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Users className="h-4 w-4 opacity-70" />
-                          <span>
-                            Employees: {plan.maxEmployees === -1 ? "Unlimited" : plan.maxEmployees}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Truck className="h-4 w-4 opacity-70" />
-                          <span>
-                            Delivery Agents:{" "}
-                            {plan.maxDeliveryAgents === -1 ? "Unlimited" : plan.maxDeliveryAgents}
-                          </span>
-                        </div>
-                      </div>
-
-                      {freemiumConsumed && isFreemium && (
-                        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-sm text-yellow-800">
-                          <p className="font-medium">Free trial already used</p>
-                          <p className="text-xs mt-1">You can only use one free trial per shop.</p>
-                        </div>
-                      )}
-
-                      {hasActiveSubscription && !isCurrentPlan && (
-                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-800">
-                          <p className="font-medium">Active subscription required</p>
-                          <p className="text-xs mt-1">Cancel your current subscription to switch plans.</p>
-                        </div>
-                      )}
-
-                      <Button
-                        className="w-full mt-4"
-                        onClick={() => handleSubscribe(plan)}
-                        disabled={
-                          subscribingPlanId === plan.id ||
-                          freemiumMutation.isPending ||
-                          checkoutMutation.isPending ||
-                          !canSubscribe
-                        }
-                        variant={isFreemium ? "default" : "default"}
-                      >
-                        {subscribingPlanId === plan.id ? (
-                          <>
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            {isFreemium ? "Activating..." : "Processing..."}
-                          </>
-                        ) : isCurrentPlan ? (
-                          "Current Plan"
-                        ) : freemiumConsumed && isFreemium ? (
-                          "Already Used"
-                        ) : hasActiveSubscription && !isCurrentPlan ? (
-                          "Cancel Current Plan First"
-                        ) : isFreemium ? (
-                          <>
-                            <Gift className="mr-2 h-4 w-4" />
-                            Use for Free
-                          </>
-                        ) : (
-                          <>
-                            <CreditCard className="mr-2 h-4 w-4" />
-                            Subscribe
-                          </>
-                        )}
-                      </Button>
-                    </CardContent>
-                  </Card>
-                );
-              })}
-              {plans?.length === 0 && (
-                <div className="col-span-full text-center p-12 text-muted-foreground">
-                  No subscription plans available
-                </div>
-              )}
+              {plans.map((plan) => renderPlanCard(plan, true))}
             </div>
           )}
         </CardContent>
       </Card>
+
+      {/* Discover Other Plans */}
+      {allActivePlans !== undefined && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Discover Other Plans</CardTitle>
+            <CardDescription>
+              Plans for different shop capabilities. Update your shop capability to subscribe to these plans.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {allPlansLoading ? (
+              <div className="space-y-4">
+                <div className="flex flex-col items-center justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground mb-2" />
+                  <p className="text-xs text-muted-foreground">Loading other plans...</p>
+                </div>
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                  <Skeleton className="h-64 w-full" />
+                  <Skeleton className="h-64 w-full" />
+                </div>
+              </div>
+            ) : otherPlans.length > 0 ? (
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                {otherPlans.map((plan) => renderPlanCard(plan, false))}
+              </div>
+            ) : (
+              <div className="text-center py-8 text-sm text-muted-foreground">
+                No other plans available for different capabilities.
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Subscription History */}
       <Card>

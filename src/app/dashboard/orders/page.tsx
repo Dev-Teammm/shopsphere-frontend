@@ -12,6 +12,7 @@ import {
   Users,
   ShoppingBag,
   DollarSign,
+  Package,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import {
@@ -955,6 +956,11 @@ export default function OrdersPage() {
                   orders.map((order) => {
                     const orderId = parseInt(order.id);
                     const currentGroup = orderGroups.get(orderId);
+                    
+                    // Check if order is pickup (check shopOrders fulfillmentType)
+                    const isPickupOrder = order.shopOrders && order.shopOrders.length > 0
+                      ? order.shopOrders.some(so => so.fulfillmentType === "PICKUP")
+                      : false;
 
                     return (
                       <TableRow key={order.id}>
@@ -966,6 +972,7 @@ export default function OrdersPage() {
                               onCheckedChange={(checked) =>
                                 handleOrderSelection(orderId, checked)
                               }
+                              disabled={isPickupOrder} // Disable checkbox for pickup orders
                             />
                           </div>
                         </TableCell>
@@ -1061,19 +1068,32 @@ export default function OrdersPage() {
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex items-center justify-end gap-1">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => openDeliveryGroupDialog(orderId)}
-                              className="h-8 w-8 p-0 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-                              title={
-                                currentGroup
-                                  ? "Change Delivery Group"
-                                  : "Assign to Delivery Group"
-                              }
-                            >
-                              <Users className="h-4 w-4" />
-                            </Button>
+                            {!isPickupOrder && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => openDeliveryGroupDialog(orderId)}
+                                className="h-8 w-8 p-0 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                                title={
+                                  currentGroup
+                                    ? "Change Delivery Group"
+                                    : "Assign to Delivery Group"
+                                }
+                              >
+                                <Users className="h-4 w-4" />
+                              </Button>
+                            )}
+                            {isPickupOrder && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                disabled
+                                className="h-8 w-8 p-0 text-muted-foreground cursor-not-allowed"
+                                title="Pickup orders cannot be assigned to delivery groups"
+                              >
+                                <Package className="h-4 w-4" />
+                              </Button>
+                            )}
                             <Button
                               variant="ghost"
                               size="sm"

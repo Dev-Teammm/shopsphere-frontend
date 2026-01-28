@@ -1,5 +1,11 @@
 import apiClient from "@/lib/api-client";
 
+export type ShopCapability = 
+  | "VISUALIZATION_ONLY"
+  | "PICKUP_ORDERS"
+  | "FULL_ECOMMERCE"
+  | "HYBRID";
+
 export interface SubscriptionPlan {
   id: number;
   name: string;
@@ -14,6 +20,7 @@ export interface SubscriptionPlan {
   maxEmployees: number;
   maxDeliveryAgents: number;
   featuresJson: string;
+  capability: ShopCapability;
   createdAt: string;
   updatedAt: string;
   freemiumConsumed?: boolean; // Only set when fetching plans for a specific shop
@@ -32,6 +39,7 @@ export interface CreateSubscriptionPlanRequest {
   maxEmployees: number;
   maxDeliveryAgents: number;
   featuresJson: string;
+  capability: ShopCapability;
 }
 
 export interface ShopSubscription {
@@ -129,5 +137,10 @@ export const subscriptionService = {
   hasConsumedFreemium: async (shopId: string): Promise<boolean> => {
     const response = await apiClient.get(`/subscriptions/has-consumed-freemium/${shopId}`);
     return response.data.hasConsumedFreemium;
+  },
+
+  getPlansByCapability: async (capability: ShopCapability, activeOnly: boolean = false): Promise<SubscriptionPlan[]> => {
+    const response = await apiClient.get(`/subscriptions/plans/by-capability/${capability}?activeOnly=${activeOnly}`);
+    return response.data;
   },
 };

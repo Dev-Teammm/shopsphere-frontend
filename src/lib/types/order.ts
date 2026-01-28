@@ -142,6 +142,7 @@ export interface AdminShopOrderDTO {
   totalAmount: number;
   pickupToken?: string;
   pickupTokenUsed?: boolean;
+  fulfillmentType?: string; // "PICKUP" or "DELIVERY"
   deliveredAt?: string;
   createdAt: string;
   updatedAt: string;
