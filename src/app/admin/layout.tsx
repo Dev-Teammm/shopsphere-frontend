@@ -21,6 +21,8 @@ export default function AdminLayout({
       setTitle("Dashboard");
     } else if (pathname.startsWith("/admin/subscriptions")) {
       setTitle("Subscription Management");
+    } else if (pathname.startsWith("/admin/feedbacks")) {
+      setTitle("Feedbacks");
     }
   }, [pathname]);
 

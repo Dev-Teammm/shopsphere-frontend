@@ -108,6 +108,10 @@ export const API_ENDPOINTS = {
   STRIPE_ACCOUNTS: {
     BASE: `/stripe-accounts`,
   },
+  FEEDBACK: {
+    BASE: `/feedback`,
+    BY_ID: (id: number) => `/feedback/${id}`,
+  },
 };
 
 // User roles - must match backend UserRole enum exactly
