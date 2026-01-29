@@ -39,6 +39,12 @@ export default function SubscriptionsPage() {
     queryFn: subscriptionService.isSystemEnabled,
   });
 
+  // Fetch shop registration status
+  const { data: isShopRegistrationEnabled } = useQuery({
+    queryKey: ["shop-registration-status"],
+    queryFn: subscriptionService.isShopRegistrationEnabled,
+  });
+
   // Mutations
   const createMutation = useMutation({
     mutationFn: subscriptionService.createPlan,
@@ -86,6 +92,19 @@ export default function SubscriptionsPage() {
     },
   });
 
+  const toggleShopRegistrationMutation = useMutation({
+    mutationFn: subscriptionService.setShopRegistrationEnabled,
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: ["shop-registration-status"],
+      });
+      toast.success("Shop registration status updated");
+    },
+    onError: () => {
+      toast.error("Failed to update shop registration status");
+    },
+  });
+
   const handleCreate = () => {
     setEditingPlan(null);
     setIsDialogOpen(true);
@@ -116,15 +135,25 @@ export default function SubscriptionsPage() {
         <h2 className="text-3xl font-bold tracking-tight">
           Subscription Management
         </h2>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-4 flex-wrap">
           <div className="flex items-center gap-2 bg-muted p-2 rounded-lg">
             <Label htmlFor="system-toggle" className="text-sm font-medium">
-              System Enabled
+              Subscription System
             </Label>
             <Switch
               id="system-toggle"
               checked={isSystemEnabled}
               onCheckedChange={(checked) => toggleSystemMutation.mutate(checked)}
+            />
+          </div>
+          <div className="flex items-center gap-2 bg-muted p-2 rounded-lg">
+            <Label htmlFor="shop-registration-toggle" className="text-sm font-medium">
+              Shop Registration
+            </Label>
+            <Switch
+              id="shop-registration-toggle"
+              checked={isShopRegistrationEnabled}
+              onCheckedChange={(checked) => toggleShopRegistrationMutation.mutate(checked)}
             />
           </div>
           <Button onClick={handleCreate}>
