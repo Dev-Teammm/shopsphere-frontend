@@ -25,6 +25,7 @@ import {
   MessageSquareX,
   PackageCheck,
   Navigation,
+  MessageSquare,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -37,6 +38,7 @@ import { useAppDispatch } from "@/lib/redux/hooks";
 import { logout } from "@/lib/redux/auth-slice";
 import { authService } from "@/lib/services/auth-service";
 import { toast } from "sonner";
+import { GiveFeedbackDialog } from "@/components/GiveFeedbackDialog";
 
 interface SidebarProps {
   className?: string;
@@ -45,6 +47,7 @@ interface SidebarProps {
 export function Sidebar({ className }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -231,6 +234,13 @@ export function Sidebar({ className }: SidebarProps) {
             isActive={pathname.startsWith("/dashboard/reward-system")}
           />
           <Separator className="my-2" />
+          <GiveFeedbackSidebarItem
+            icon={MessageSquare}
+            label="Give Feedback"
+            collapsed={collapsed}
+            onClick={() => setFeedbackOpen(true)}
+          />
+          <Separator className="my-2" />
           <SidebarItem
             href={getHrefWithShopSlug("/dashboard/settings")}
             icon={Settings}
@@ -247,6 +257,7 @@ export function Sidebar({ className }: SidebarProps) {
           />
         </div>
       </ScrollArea>
+      <GiveFeedbackDialog open={feedbackOpen} onOpenChange={setFeedbackOpen} />
     </div>
   );
 }
@@ -286,6 +297,36 @@ function SidebarItem({
       {!collapsed && <span>{label}</span>}
       {collapsed && <span className="sr-only">{label}</span>}
     </Link>
+  );
+}
+
+interface GiveFeedbackSidebarItemProps {
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  collapsed: boolean;
+  onClick: () => void;
+}
+
+function GiveFeedbackSidebarItem({
+  icon: Icon,
+  label,
+  collapsed,
+  onClick,
+}: GiveFeedbackSidebarItemProps) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "flex h-10 w-full items-center rounded-lg px-3 py-2 transition-colors text-left",
+        "text-muted-foreground hover:bg-primary hover:text-primary-foreground",
+        collapsed ? "justify-center" : "justify-start"
+      )}
+    >
+      <Icon className={cn("h-5 w-5", collapsed ? "mr-0" : "mr-2")} />
+      {!collapsed && <span>{label}</span>}
+      {collapsed && <span className="sr-only">{label}</span>}
+    </button>
   );
 }
 
