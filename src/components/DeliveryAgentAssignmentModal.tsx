@@ -66,11 +66,17 @@ export default function DeliveryAgentAssignmentModal({
   const [sortBy, setSortBy] = useState("firstName");
   const [sortDirection, setSortDirection] = useState<"ASC" | "DESC">("ASC");
   const [agentWorkloads, setAgentWorkloads] = useState<Record<string, DeliveryAgentWorkload>>({});
+  const [assignmentError, setAssignmentError] = useState<string | null>(null);
 
   const queryClient = useQueryClient();
 
   // Debounced search term for backend API calls
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
+
+  // Clear error when modal opens so a previous error doesn't persist
+  useEffect(() => {
+    if (open) setAssignmentError(null);
+  }, [open]);
   
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -142,10 +148,6 @@ export default function DeliveryAgentAssignmentModal({
       console.error("Error response data:", error.response?.data);
       console.error("Error response status:", error.response?.status);
       
-      // Test if toast is working at all
-      console.log("Testing toast functionality...");
-      toast.error("TEST: Error handler was triggered!");
-      
       // Try to extract error message from different response formats
       let errorMessage = "Failed to assign delivery agent";
       
@@ -180,38 +182,7 @@ export default function DeliveryAgentAssignmentModal({
       }
       
       console.log("Final error message to process:", errorMessage);
-      
-      // Handle specific error cases with user-friendly messages
-      if (errorMessage.toLowerCase().includes("cannot be assigned to delivery agent")) {
-        if (errorMessage.includes("Delivery Status: ASSIGNED")) {
-          console.log("Showing already assigned error");
-          toast.error("This return request has already been assigned to a delivery agent.");
-        } else if (errorMessage.includes("Status: PENDING")) {
-          console.log("Showing pending status error");
-          toast.error("Return request must be approved before assigning a delivery agent.");
-        } else if (errorMessage.includes("Status: DENIED")) {
-          console.log("Showing denied status error");
-          toast.error("Cannot assign delivery agent to a denied return request.");
-        } else if (errorMessage.includes("Status: COMPLETED")) {
-          console.log("Showing completed status error");
-          toast.error("Cannot assign delivery agent to a completed return request.");
-        } else {
-          console.log("Showing generic assignment error");
-          toast.error("Return request cannot be assigned to delivery agent. Please check the request status.");
-        }
-      } else if (error.response?.status === 404) {
-        console.log("Showing 404 error");
-        toast.error("Return request or delivery agent not found.");
-      } else if (error.response?.status === 403) {
-        console.log("Showing 403 error");
-        toast.error("You do not have permission to assign delivery agents.");
-      } else if (error.response?.status === 400) {
-        console.log("Showing 400 error with message:", errorMessage);
-        toast.error(errorMessage);
-      } else {
-        console.log("Showing generic error:", errorMessage);
-        toast.error(errorMessage);
-      }
+      setAssignmentError(errorMessage);
     },
   });
 
@@ -222,6 +193,7 @@ export default function DeliveryAgentAssignmentModal({
     setDebouncedSearchTerm("");
     setCurrentPage(0);
     setAgentWorkloads({});
+    setAssignmentError(null);
   };
 
   const handleAssign = () => {
@@ -311,6 +283,7 @@ export default function DeliveryAgentAssignmentModal({
   }
 
   return (
+    <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
@@ -608,6 +581,7 @@ export default function DeliveryAgentAssignmentModal({
           <Button
             variant="outline"
             onClick={() => {
+              setAssignmentError(null);
               onOpenChange(false);
               resetForm();
             }}
@@ -634,5 +608,31 @@ export default function DeliveryAgentAssignmentModal({
         </div>
       </DialogContent>
     </Dialog>
+
+    {/* Error dialog - shows backend error message */}
+    <Dialog open={!!assignmentError} onOpenChange={(open) => !open && setAssignmentError(null)}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2 text-destructive">
+            <AlertCircle className="h-5 w-5" />
+            Assignment failed
+          </DialogTitle>
+          <DialogDescription asChild>
+            <p className="text-sm text-muted-foreground pt-2 whitespace-pre-wrap">
+              {assignmentError}
+            </p>
+          </DialogDescription>
+        </DialogHeader>
+        <div className="flex justify-end pt-4">
+          <Button
+            variant="default"
+            onClick={() => setAssignmentError(null)}
+          >
+            Close
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  </>
   );
 }

@@ -41,6 +41,11 @@ export interface ReturnRequestDTO {
   shopId?: string;
   shopName?: string;
   shopSlug?: string;
+
+  // Delivery agent (when assigned)
+  deliveryAgentId?: string | null;
+  deliveryAgentName?: string | null;
+  deliveryStatus?: string | null;
 }
 
 export interface ReturnItemDTO {
