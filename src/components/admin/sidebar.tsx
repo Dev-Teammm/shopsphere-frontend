@@ -10,6 +10,7 @@ import {
   ChevronLeft,
   CreditCard,
   Shield,
+  MessageSquare,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -110,6 +111,13 @@ export function AdminSidebar({ className }: AdminSidebarProps) {
             label="Subscriptions"
             collapsed={collapsed}
             isActive={pathname.startsWith("/admin/subscriptions")}
+          />
+          <SidebarItem
+            href="/admin/feedbacks"
+            icon={MessageSquare}
+            label="Feedbacks"
+            collapsed={collapsed}
+            isActive={pathname.startsWith("/admin/feedbacks")}
           />
           <LogoutButton
             icon={LogOut}

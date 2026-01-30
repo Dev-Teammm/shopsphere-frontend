@@ -83,7 +83,7 @@ export const deliveryNotesService = {
   },
 
   /**
-   * Get notes for a specific delivery group
+   * Get notes for a specific delivery group (group-general notes only)
    */
   getNotesForDeliveryGroup: async (
     groupId: number,
@@ -91,6 +91,20 @@ export const deliveryNotesService = {
     size: number = 10
   ): Promise<PaginatedResponse<DeliveryNoteDTO>> => {
     const response = await apiClient.get(`/delivery-notes/group/${groupId}`, {
+      params: { page, size, sortBy: "createdAt", sortDirection: "DESC" },
+    });
+    return response.data;
+  },
+
+  /**
+   * Get all notes for a delivery group (both order-specific and group-general)
+   */
+  getAllNotesForDeliveryGroup: async (
+    groupId: number,
+    page: number = 0,
+    size: number = 10
+  ): Promise<PaginatedResponse<DeliveryNoteDTO>> => {
+    const response = await apiClient.get(`/delivery-notes/group/${groupId}/all`, {
       params: { page, size, sortBy: "createdAt", sortDirection: "DESC" },
     });
     return response.data;

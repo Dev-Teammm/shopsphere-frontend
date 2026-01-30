@@ -12,6 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import {
   Dialog,
@@ -64,6 +65,7 @@ export default function ReturnRequestDetailPage() {
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
   const [decisionNotes, setDecisionNotes] = useState("");
+  const [refundScreenshot, setRefundScreenshot] = useState<File | null>(null);
   const [selectedMedia, setSelectedMedia] = useState<any>(null);
   const [showMediaViewer, setShowMediaViewer] = useState(false);
 
@@ -97,6 +99,12 @@ export default function ReturnRequestDetailPage() {
       return;
     }
 
+    // Validate refund screenshot is required for approvals
+    if (decision === "APPROVED" && !refundScreenshot) {
+      toast.error("Payment screenshot is required when approving return requests");
+      return;
+    }
+
     try {
       setProcessing(true);
       const decisionData: ReturnDecisionDTO = {
@@ -105,12 +113,20 @@ export default function ReturnRequestDetailPage() {
         decisionNotes: decisionNotes.trim() || undefined,
       };
 
-      await returnService.reviewReturnRequest(decisionData);
+      await returnService.reviewReturnRequest(decisionData, refundScreenshot || undefined);
       toast.success(`Return request ${decision.toLowerCase()} successfully`);
 
       // Refresh the data
       await fetchReturnRequest();
       setDecisionNotes("");
+      setRefundScreenshot(null);
+      // Reset file input
+      const fileInput = document.getElementById(
+        "refund-screenshot-input"
+      ) as HTMLInputElement;
+      if (fileInput) {
+        fileInput.value = "";
+      }
     } catch (error: any) {
       console.error("Failed to process decision:", error);
       const errorMessage =
@@ -650,10 +666,65 @@ export default function ReturnRequestDetailPage() {
                       rows={3}
                     />
                   </div>
+                  
+                  <div>
+                    <label className="text-sm font-medium mb-2 block">
+                      Payment Screenshot <span className="text-red-500">*</span>
+                      <span className="text-xs text-muted-foreground font-normal ml-2">
+                        (Required for approvals)
+                      </span>
+                    </label>
+                    <div className="space-y-2">
+                      <Input
+                        id="refund-screenshot-input"
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          setRefundScreenshot(file || null);
+                        }}
+                        disabled={processing}
+                      />
+                      {refundScreenshot && (
+                        <div className="flex items-center gap-2 p-2 bg-muted rounded-md">
+                          <ImageIcon className="h-4 w-4 text-blue-600" />
+                          <span className="text-sm text-muted-foreground flex-1">
+                            {refundScreenshot.name}
+                          </span>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              setRefundScreenshot(null);
+                              const fileInput = document.getElementById(
+                                "refund-screenshot-input"
+                              ) as HTMLInputElement;
+                              if (fileInput) {
+                                fileInput.value = "";
+                              }
+                            }}
+                            className="h-6 w-6 p-0"
+                          >
+                            <X className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      )}
+                      {refundScreenshot && (
+                        <div className="mt-2">
+                          <img
+                            src={URL.createObjectURL(refundScreenshot)}
+                            alt="Screenshot preview"
+                            className="max-w-full max-h-48 object-contain rounded-md border"
+                          />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
                   <div className="flex gap-3">
                     <Button
                       onClick={() => handleDecision("APPROVED")}
-                      disabled={processing}
+                      disabled={processing || !refundScreenshot}
                       className="flex-1"
                     >
                       <CheckCircle className="h-4 w-4 mr-2" />
