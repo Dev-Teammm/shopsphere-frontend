@@ -536,6 +536,7 @@ export default function ReturnRequestsPage() {
                         Refund Amount
                       </TableHead>
                       <TableHead className="min-w-[100px]">Status</TableHead>
+                      <TableHead className="min-w-[140px]">Delivery Agent</TableHead>
                       <TableHead className="min-w-[160px]">Submitted</TableHead>
                       <TableHead className="min-w-[120px]">Actions</TableHead>
                     </TableRow>
@@ -582,6 +583,16 @@ export default function ReturnRequestsPage() {
                         </TableCell>
                         <TableCell>
                           {getStatusBadge(returnRequest.status)}
+                        </TableCell>
+                        <TableCell>
+                          {returnRequest.deliveryAgentName ? (
+                            <div className="flex items-center gap-2">
+                              <Truck className="h-4 w-4 text-muted-foreground shrink-0" />
+                              <span className="text-sm font-medium">{returnRequest.deliveryAgentName}</span>
+                            </div>
+                          ) : (
+                            <span className="text-sm text-muted-foreground">—</span>
+                          )}
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-1">
@@ -680,6 +691,18 @@ export default function ReturnRequestsPage() {
                             )}
                           </span>
                         </div>
+
+                        {returnRequest.deliveryAgentName && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm text-muted-foreground">
+                              Delivery Agent:
+                            </span>
+                            <span className="text-sm flex items-center gap-1">
+                              <Truck className="h-4 w-4 text-muted-foreground" />
+                              {returnRequest.deliveryAgentName}
+                            </span>
+                          </div>
+                        )}
 
                         <div className="flex items-center justify-between">
                           <span className="text-sm text-muted-foreground">
