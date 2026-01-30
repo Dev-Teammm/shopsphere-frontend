@@ -1,6 +1,5 @@
 import apiClient from "../api-client";
 import { API_ENDPOINTS } from "../constants";
-import { ShopCapability } from "./subscription-service";
 
 export interface ShopDTO {
   shopId: string;
@@ -16,14 +15,10 @@ export interface ShopDTO {
   contactPhone?: string;
   address?: string;
   isActive?: boolean;
-  category?: string; // Legacy support
-  shopCategoryId?: number;
-  shopCategoryName?: string;
   productCount?: number;
   createdAt?: string;
   updatedAt?: string;
   stripeAccount?: StripeAccountDTO;
-  primaryCapability?: ShopCapability;
 }
 
 export interface StripeAccountDTO {
@@ -277,50 +272,6 @@ class ShopService {
         error.response?.data?.message ||
           error.message ||
           "Failed to update shop. Please try again.",
-      );
-    }
-  }
-
-  async getPendingOperationsForTransition(
-    shopId: string,
-    newCapability: ShopCapability,
-  ): Promise<{
-    pendingOrders: number;
-    pendingReturns: number;
-    pendingAppeals: number;
-    pendingDeliveries: number;
-    total: number;
-  }> {
-    try {
-      const token = localStorage.getItem("authToken");
-      if (!token) {
-        throw new Error("Authentication token not found. Please log in again.");
-      }
-
-      const response = await apiClient.get<{
-        pendingOrders: number;
-        pendingReturns: number;
-        pendingAppeals: number;
-        pendingDeliveries: number;
-        total: number;
-      }>(
-        `/capability-transitions/pending-operations/${shopId}`,
-        {
-          params: {
-            newCapability: newCapability,
-          },
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        },
-      );
-      return response.data;
-    } catch (error: any) {
-      console.error("[ShopService] Error getting pending operations:", error);
-      throw new Error(
-        error.response?.data?.message ||
-          error.message ||
-          "Failed to get pending operations. Please try again.",
       );
     }
   }

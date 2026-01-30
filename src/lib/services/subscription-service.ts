@@ -95,6 +95,15 @@ export const subscriptionService = {
     await apiClient.post(`/subscriptions/config/enabled?enabled=${enabled}`);
   },
 
+  isShopRegistrationEnabled: async (): Promise<boolean> => {
+    const response = await apiClient.get("/subscriptions/config/shop-registration-enabled");
+    return response.data;
+  },
+
+  setShopRegistrationEnabled: async (enabled: boolean): Promise<void> => {
+    await apiClient.post(`/subscriptions/config/shop-registration-enabled?enabled=${enabled}`);
+  },
+
   // Shop Subscription Methods
   subscribeShop: async (shopId: string, planId: number, autoRenew: boolean = false): Promise<ShopSubscription> => {
     const response = await apiClient.post(`/subscriptions/subscribe?shopId=${shopId}&planId=${planId}&autoRenew=${autoRenew}`);

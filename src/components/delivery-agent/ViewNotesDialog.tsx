@@ -72,7 +72,8 @@ export default function ViewNotesDialog({
   const fetchNotes = async (page: number) => {
     setLoading(true);
     try {
-      const response = await deliveryNotesService.getNotesForDeliveryGroup(
+      // Use getAllNotesForDeliveryGroup to get both order-specific and group-general notes
+      const response = await deliveryNotesService.getAllNotesForDeliveryGroup(
         deliveryGroupId,
         page,
         pageSize
@@ -160,7 +161,7 @@ export default function ViewNotesDialog({
               Delivery Notes - {deliveryGroupName}
             </DialogTitle>
             <DialogDescription>
-              View and manage notes for this delivery group
+              View and manage all notes for this delivery group (including notes for individual orders)
             </DialogDescription>
           </DialogHeader>
 
@@ -192,6 +193,11 @@ export default function ViewNotesDialog({
                             <Badge variant="secondary" className="text-xs">
                               {note.noteType === "GROUP_GENERAL" ? "Group Note" : "Order Note"}
                             </Badge>
+                            {note.orderNumber && (
+                              <Badge variant="outline" className="text-xs">
+                                Order: {note.orderNumber}
+                              </Badge>
+                            )}
                           </div>
                           <p className="text-sm leading-relaxed">{note.noteText}</p>
                         </div>
